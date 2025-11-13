@@ -1,8 +1,9 @@
-# main.py
+# main.py (V7)
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
 import json
 import random
 import datetime
@@ -36,56 +37,54 @@ class GCalendar:
         self.service = None
 
     def build_service(self):
-            storage_content = os.environ.get('CALENDAR_STORAGE_JSON') # 1. 환경 변수에서 토큰(JSON 텍스트) 읽기
-            
-            if storage_content:
-                print("환경 변수에서 Google Credential 로드 시도...")
-                try:
-                    # 2. 텍스트(JSON)를 파싱하여 Credentials 객체 생성
-                    creds_info = json.loads(storage_content)
-                    self.credentials = Credentials.from_authorized_user_info(creds_info, SCOPES)
-                except Exception as e:
-                    print(f"환경 변수 로드 실패: {e}")
-                    self.credentials = None
-            else:
-                print("CALENDAR_STORAGE_JSON 환경 변수가 없습니다.")
+        # (V6/V5에서 가져온 '서버 환경용' 인증 코드)
+        storage_content = os.environ.get('CALENDAR_STORAGE_JSON')
+        
+        if storage_content:
+            print("환경 변수에서 Google Credential 로드 시도...")
+            try:
+                creds_info = json.loads(storage_content)
+                self.credentials = Credentials.from_authorized_user_info(creds_info, SCOPES)
+            except Exception as e:
+                print(f"환경 변수 로드 실패: {e}")
                 self.credentials = None
-    
-            # 3. 토큰이 유효하지 않거나 만료되었는지 확인
-            if not self.credentials or not self.credentials.valid:
-                if self.credentials and self.credentials.expired and self.credentials.refresh_token:
-                    print("토큰 만료. 리프레시 시도...")
-                    try:
-                        self.credentials.refresh(Request())
-                        # (참고: Render는 ephemeral 파일 시스템이라 어차피 '저장'은 안 되지만,
-                        #  메모리상에서는 갱신되어 세션 동안 문제없이 작동함)
-                    except Exception as e:
-                        print(f"토큰 리프레시 실패: {e}")
-                        # 리프레시 실패 시, 인증을 처음부터 다시 해야 함 (로컬에서 1번 과정 다시)
-                        # (V6에서는 로컬 인증 흐름을 제거했으므로 에러 발생)
-                        raise Exception("Google Auth Refresh Failed. 로컬에서 Calendar.storage를 갱신하고 환경 변수를 다시 설정해야 합니다.")
-                else:
-                    # 4. [중요] 로컬 서버 인증 흐름(InstalledAppFlow)은 서버에서 실행되면 안 됨.
-                    # 이 코드가 실행된다는 것은 CALENDAR_STORAGE_JSON 환경 변수가 없거나 잘못되었다는 뜻.
-                    print("유효한 Google Credential이 없습니다. 배포 환경을 확인하세요.")
-                    # V6에서는 로컬 인증 흐름(flow.run...)을 완전히 제거했으므로, 여기서 멈추는 게 맞음.
-                    # (만약 로컬 테스트를 위해 남겨두고 싶다면, 
-                    #  V5 코드의 else: flow = ... 부분을 여기에 추가할 수 있음)
-                    raise Exception("Google Auth Error. CALENDAR_STORAGE_JSON 환경 변수를 확인하세요.")
-    
-            print("Google Credential 로드 성공.")
-            self.service = build('calendar', 'v3', credentials=self.credentials)
+        else:
+            # (로컬 테스트용: 파일 시스템 사용)
+            print("환경 변수 없음. 로컬 파일(Calendar.storage)로 인증 시도...")
+            if os.path.exists(self.storage_name):
+                self.credentials = Credentials.from_authorized_user_file(self.storage_name, SCOPES)
+            else:
+                self.credentials = None
 
-    def get_events(self, calendar_id, start, end):
-        # (V6에서는 사용되지 않음)
-        try:
-            events_result = self.service.events().list(
-                calendarId=calendar_id, timeMin=start, timeMax=end,
-                timeZone="Asia/Seoul", singleEvents=True, orderBy='startTime').execute()
-            return events_result.get('items', [])
-        except Exception as e:
-            print(f"An error occurred while fetching events: {e}")
-            return []
+        if not self.credentials or not self.credentials.valid:
+            if self.credentials and self.credentials.expired and self.credentials.refresh_token:
+                print("토큰 만료. 리프레시 시도...")
+                try:
+                    self.credentials.refresh(Request())
+                    # (로컬 테스트용) 파일이 존재하면 갱신된 토큰을 저장
+                    if os.path.exists(self.storage_name):
+                         with open(self.storage_name, 'w') as token:
+                            token.write(self.credentials.to_json())
+                except Exception as e:
+                    print(f"토큰 리프레시 실패: {e}. 로컬 인증이 필요할 수 있습니다.")
+                    self.credentials = None # 리프레시 실패 시 자격 증명 초기화
+            
+            # (로컬 테스트용) 환경 변수도 없고, 파일도 없거나 리프레시 실패 시
+            if not self.credentials:
+                print("유효한 Google Credential이 없습니다. 로컬 인증 흐름(InstalledAppFlow)을 시작합니다.")
+                try:
+                    flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET, SCOPES)
+                    self.credentials = flow.run_local_server(port=0)
+                    with open(self.storage_name, 'w') as token:
+                        token.write(self.credentials.to_json())
+                    print("로컬 인증 성공. Calendar.storage 파일 생성됨.")
+                except Exception as e:
+                     print(f"로컬 인증 흐름 실패: {e}")
+                     raise Exception("Google Auth Error.")
+
+        print("Google Credential 로드 성공.")
+        self.service = build('calendar', 'v3', credentials=self.credentials)
+
 
     def insert_event(self, calendar_id, event_name, start, end, description):
         try:
@@ -115,10 +114,8 @@ turn_order: list[str] = []
 current_turn_index: int = 0
 
 # --- 상태 관리 변수 ---
-week_mode = 1 # 1: 다음주 (고정)
-# "확정된" 슬롯 (Red) - {슬롯ID: 이니셜} (세션 누적)
+week_mode = 1 # 0:이번주, 1:다음주, 2:다다음주 (Request 4)
 confirmed_reserved_slots: dict[str, str] = {}
-# "이번 라운드에 선택된" 슬롯 버퍼 (Yellow) - {슬롯ID: 이름}
 current_round_selections: dict[str, str] = {}
 
 
@@ -134,48 +131,170 @@ async def get_root():
 
 # --- WebSocket 헬퍼 함수 ---
 async def broadcast(message: str):
-    for user_name, client in client_connections.items():
+    """모든 연결된 클라이언트에게 JSON 메시지 전송"""
+    for client in client_connections.values():
         try:
             await client.send_text(message)
         except Exception as e:
-            print(f"{user_name} 에게 브로드캐스트 실패: {e}")
+            print(f"브로드캐스트 실패: {e}")
 
 async def notify_turn():
+    """현재 턴인 사용자에게 알림"""
     global current_turn_index, turn_order
+    
     if current_turn_index < len(turn_order):
         current_user = turn_order[current_turn_index]
         message = json.dumps({"type": "turn_update", "user": current_user})
     else:
         message = json.dumps({"type": "turn_update", "user": "ROUND_END"})
+    
     print(f"턴 알림 전송: {message}")
     await broadcast(message)
 
+# [신규] 접속자 목록 브로드캐스트 (Request 2)
+async def broadcast_user_list():
+    user_list = list(client_connections.keys())
+    await broadcast(json.dumps({"type": "user_list_update", "users": user_list}))
+
+# [신규] 현재 보드 상태 브로드캐스트 (초기화, 삭제 시 사용)
+async def broadcast_initial_state():
+    await broadcast(json.dumps({
+        "type": "initial_state",
+        "reserved": confirmed_reserved_slots,
+        "pending": current_round_selections
+    }))
+
 # 날짜 계산 헬퍼 함수
-def get_week_range(week_offset=1):
+def get_event_datetime(day_str, time_str, current_week_mode):
+    """요일, 시간, 주간모드를 기반으로 start/end ISO 시간을 계산 (Request 4)"""
+    day_map = {'Mon': 0, 'Tue': 1, 'Wed': 2, 'Thu': 3, 'Fri': 4, 'Sat': 5, 'Sun': 6}
+    time_map = {'AM': (8, 0, 13, 0), 'PM': (13, 0, 19, 0), 'NT': (19, 0, 24, 0)}
+    
+    day_num = day_map.get(day_str)
+    time_data = time_map.get(time_str)
+    
+    if day_num is None or time_data is None:
+        raise ValueError(f"Invalid day/time: {day_str}, {time_str}")
+
+    start_hour, start_minute, end_hour, end_minute = time_data
     today = datetime.date.today()
-    if week_offset == 0:
-        start_of_week = today - datetime.timedelta(days=today.weekday())
+    
+    # [수정] week_mode(0, 1, 2)에 따라 날짜 계산
+    if current_week_mode == 0: # 이번주
+        days_diff = day_num - today.weekday()
+    elif current_week_mode == 1: # 다음주
+        days_diff = 7 - today.weekday() + day_num
+    else: # current_week_mode == 2 (다다음주)
+        days_diff = 14 - today.weekday() + day_num
+        
+    event_date = today + datetime.timedelta(days=days_diff)
+    
+    start_time = datetime.datetime.combine(event_date, datetime.time(start_hour, start_minute, tzinfo=GCalendar.KST))
+    if end_hour == 24:
+        end_time = datetime.datetime.combine(event_date + datetime.timedelta(days=1), datetime.time(0, 0, tzinfo=GCalendar.KST))
     else:
-        days_until_next_week = 7 - today.weekday()
-        start_of_week = today + datetime.timedelta(days=days_until_next_week)
-    end_of_week = start_of_week + datetime.timedelta(days=7)
-    start_iso = datetime.datetime.combine(start_of_week, datetime.time(0, 0), tzinfo=GCalendar.KST).isoformat()
-    end_iso = datetime.datetime.combine(end_of_week, datetime.time(0, 0), tzinfo=GCalendar.KST).isoformat()
-    return start_iso, end_iso
+        end_time = datetime.datetime.combine(event_date, datetime.time(end_hour, end_minute, tzinfo=GCalendar.KST))
+        
+    return start_time.isoformat(), end_time.isoformat()
 
 
-# --- [V6] 라운드 시작 API (캘린더 읽기 X) ---
+# --- 관리자 API ---
+
+# [신규] 시스템 초기화 API (Request 1)
+@app.post("/reset_session")
+async def reset_session():
+    global confirmed_reserved_slots, current_round_selections, turn_order, current_turn_index
+    
+    print("[Admin] 시스템 상태 초기화...")
+    confirmed_reserved_slots = {}
+    current_round_selections = {}
+    turn_order = []
+    current_turn_index = 0
+    
+    await broadcast_initial_state() # 비워진 상태 전파
+    await notify_turn() # "ROUND_END" (또는 "대기 중") 전파
+    
+    return {"status": "success", "message": "시스템이 초기화되었습니다."}
+
+# [신규] 주간 모드 변경 API (Request 4)
+@app.post("/set_week_mode/{mode}")
+async def set_week_mode(mode: int):
+    global week_mode
+    if mode in [0, 1, 2]:
+        week_mode = mode
+        print(f"[Admin] 주간 모드 변경 -> {mode}")
+        await broadcast(json.dumps({"type": "week_mode_update", "mode": week_mode}))
+        return {"status": "success", "week_mode": week_mode}
+    raise HTTPException(status_code=400, detail="Invalid mode")
+
+# [신규] 수동 추가 요청 Body 모델 (Request 3)
+class ManualAddRequest(BaseModel):
+    name: str
+    day: str # "Mon"
+    time: str # "AM"
+    floor: str # "1F"
+
+# [신규] 수동 추가 API (Request 3)
+@app.post("/admin/manual_add")
+async def manual_add(item: ManualAddRequest):
+    global confirmed_reserved_slots
+    
+    slot_id = f"{item.day}-{item.time}-{item.floor}"
+    print(f"[Admin] 수동 추가 시도: {slot_id} / {item.name}")
+    
+    # 1. 중복 확인
+    if slot_id in confirmed_reserved_slots or slot_id in current_round_selections:
+        print(" > 에러: 중복된 슬롯")
+        raise HTTPException(status_code=400, detail="이미 선택되거나 확정된 슬롯입니다.")
+        
+    try:
+        # 2. 캘린더 인증 및 시간 계산 (현재 week_mode 사용)
+        if not calendar_service.service or (calendar_service.credentials and not calendar_service.credentials.valid):
+            calendar_service.build_service()
+        
+        start_iso, end_iso = get_event_datetime(item.day, item.time, week_mode)
+        initial = name_map.get(item.name, "??")
+        calendar_id = CALENDAR_IDS.get(item.floor)
+
+        if not calendar_id:
+            raise ValueError("Invalid floor")
+            
+        # 3. 캘린더에 삽입
+        event = calendar_service.insert_event(
+            calendar_id=calendar_id,
+            event_name=initial,
+            start=start_iso,
+            end=end_iso,
+            description=slot_id
+        )
+        if not event:
+            raise Exception("Calendar API returned None")
+            
+        # 4. 성공 시, 시스템(Red)에 즉시 반영
+        confirmed_reserved_slots[slot_id] = initial
+        print(f" > 성공. 캘린더 추가 완료.")
+        
+        # 5. 모든 클라이언트에 보드 상태 갱신
+        await broadcast_initial_state()
+        
+        return {"status": "success", "slot_id": slot_id, "initial": initial}
+
+    except Exception as e:
+        print(f" > 수동 추가 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"수동 추가 실패: {e}")
+
+
+# --- 라운드 시작 API (V6 기준) ---
 @app.post("/start_round")
 async def start_round():
-    global turn_order, current_turn_index, confirmed_reserved_slots, current_round_selections
+    global turn_order, current_turn_index, current_round_selections
     
-    # 1. (캘린더 읽기 로직 없음)
-    print("새 라운드 시작. 기존 확정 슬롯(Red)을 유지합니다.")
+    print("새 라운드 시작.")
 
-    # 2. 이번 라운드 버퍼(Yellow) 초기화
+    # 1. 이번 라운드 버퍼(Yellow) 초기화 (Red는 유지)
     current_round_selections = {}
     
-    # 3. 접속자 기준 셔플
+    # 2. 접속자 기준 셔플
     current_connected_users = list(client_connections.keys())
     if not current_connected_users:
         return {"status": "error", "message": "접속한 사용자가 없습니다."}
@@ -184,75 +303,52 @@ async def start_round():
     current_turn_index = 0
     print(f"새 라운드 순서: {turn_order}")
 
-    # 4. "초기 상태" 전파 (유지된 Red + 비워진 Yellow 전송)
-    await broadcast(json.dumps({
-        "type": "initial_state",
-        "reserved": confirmed_reserved_slots, 
-        "pending": current_round_selections
-    }))
+    # 3. "초기 상태" 전파 (유지된 Red + 비워진 Yellow 전송)
+    await broadcast_initial_state()
     
-    # 5. 순서 공지
+    # 4. 순서 공지
     await broadcast(json.dumps({"type": "round_started", "order": turn_order}))
     
-    # 6. 첫 턴 공지
+    # 5. 첫 턴 공지
     await notify_turn() 
     
     return {"status": "round started", "turn_order": turn_order}
 
 
-# --- 캘린더 일괄 추가 API (V5와 동일) ---
+# --- 캘린더 일괄 추가 API (V6 수정) ---
 @app.post("/commit_calendar")
 async def commit_calendar():
-    global confirmed_reserved_slots, current_round_selections
+    global confirmed_reserved_slots, current_round_selections, week_mode
     
     if not current_round_selections:
         return {"status": "error", "message": "새로 추가할 예약이 없습니다."}
 
-    print(f"캘린더 일괄 추가 시작. 대상: {current_round_selections}")
+    print(f"캘린더 일괄 추가 시작 (모드: {week_mode}). 대상: {current_round_selections}")
     
     try:
         if not calendar_service.service or (calendar_service.credentials and not calendar_service.credentials.valid):
-            print("Google Calendar 서비스 인증 시도...")
             calendar_service.build_service()
             
         success_data = {}
         
         for slot_id, user_name in current_round_selections.items():
-            # (파싱 로직 시작)
-            parts = slot_id.split('-')
-            day_str_map = {'Mon': '월', 'Tue': '화', 'Wed': '수', 'Thu': '목', 'Fri': '금', 'Sat': '토', 'Sun': '일'}
-            time_str_map = {'AM': '오전', 'PM': '오후', 'NT': '밤'}
-            day_str = day_str_map.get(parts[0])
-            time_str = time_str_map.get(parts[1])
-            floor_str = parts[2]
-            day_map = {'월': 0, '화': 1, '수': 2, '목': 3, '금': 4, '토': 5, '일': 6}
-            time_map = {'오전': (8, 0, 13, 0), '오후': (13, 0, 19, 0), '밤': (19, 0, 24, 0)}
-            event_name = name_map[user_name]
-            start_hour, start_minute, end_hour, end_minute = time_map[time_str]
-            today = datetime.date.today()
-            if week_mode == 0:
-                days_diff = day_map[day_str] - today.weekday()
-                event_date = today + datetime.timedelta(days=days_diff)
-            else:
-                days_until_next_week = 7 - today.weekday()
-                event_date = today + datetime.timedelta(days=days_until_next_week + day_map[day_str])
-            start_time = datetime.datetime.combine(event_date, datetime.time(start_hour, start_minute, tzinfo=GCalendar.KST))
-            if end_hour == 24:
-                end_time = datetime.datetime.combine(event_date + datetime.timedelta(days=1), datetime.time(0, 0, tzinfo=GCalendar.KST))
-            else:
-                end_time = datetime.datetime.combine(event_date, datetime.time(end_hour, end_minute, tzinfo=GCalendar.KST))
-            # (파싱 로직 끝)
+            parts = slot_id.split('-') # [Mon, AM, 1F]
+            initial = name_map[user_name]
+            calendar_id = CALENDAR_IDS[parts[2]]
+            
+            # [수정] get_event_datetime 헬퍼 함수 사용 (week_mode 반영)
+            start_iso, end_iso = get_event_datetime(parts[0], parts[1], week_mode)
 
             event = calendar_service.insert_event(
-                calendar_id=CALENDAR_IDS[floor_str],
-                event_name=event_name,
-                start=start_time.isoformat(),
-                end=end_time.isoformat(),
+                calendar_id=calendar_id,
+                event_name=initial,
+                start=start_iso,
+                end=end_iso,
                 description=slot_id
             )
             if event:
                 print(f"  > {slot_id} ({user_name}) 추가 성공.")
-                success_data[slot_id] = event_name
+                success_data[slot_id] = initial
             else:
                 print(f"  > {slot_id} ({user_name}) 추가 실패.")
 
@@ -268,10 +364,10 @@ async def commit_calendar():
 
     except Exception as e:
         print(f"[캘린더 일괄 추가 에러] {e}")
-        return {"status": "error", "message": str(e)}
+        raise HTTPException(status_code=500, detail=f"캘린더 일괄 추가 실패: {e}")
 
 
-# --- [수정] WebSocket 핵심 로직 (중복 접속 방지) ---
+# --- WebSocket 핵심 로직 ---
 @app.websocket("/ws/{user_name}")
 async def websocket_endpoint(websocket: WebSocket, user_name: str):
     
@@ -281,24 +377,22 @@ async def websocket_endpoint(websocket: WebSocket, user_name: str):
         await websocket.close(code=1008, reason="Invalid user name")
         return
 
-    # [수정] 연결을 먼저 수락
     await websocket.accept()
     
-    # [신규] 중복 접속 확인 (Request 2)
+    # 중복 접속 확인
     if user_name in client_connections:
         print(f"'{user_name}' 님은 이미 접속 중입니다. 새 연결을 거부합니다.")
-        # 클라이언트에게 에러 메시지 전송
         await websocket.send_text(json.dumps({
             "type": "error", 
-            "message": "이미 접속 중인 이름입니다. 다른 이름으로 시도하세요."
+            "message": "이미 접속 중인 이름입니다."
         }))
-        # 연결 강제 종료
         await websocket.close(code=1003, reason="Duplicate connection")
-        return # 함수 종료
+        return
 
-    # 중복이 아니면 정식으로 추가
+    # 접속 성공
     client_connections[user_name] = websocket
     print(f"클라이언트 '{user_name}' 접속. (총 {len(client_connections)} 명)")
+    await broadcast_user_list() # [신규] 접속자 목록 갱신 (Request 2)
     
     # 접속 시 "현재 상태" 전송
     await websocket.send_text(json.dumps({
@@ -307,17 +401,41 @@ async def websocket_endpoint(websocket: WebSocket, user_name: str):
         "pending": current_round_selections
     }))
     
-    # 현재 턴 상태도 전송
+    # 현재 턴 상태 전송
     current_user = "대기 중..."
     if turn_order:
         current_user = turn_order[current_turn_index] if current_turn_index < len(turn_order) else "ROUND_END"
     await websocket.send_text(json.dumps({"type": "turn_update", "user": current_user}))
-
+    
+    # 현재 주간 모드 전송
+    await websocket.send_text(json.dumps({"type": "week_mode_update", "mode": week_mode}))
 
     try:
         while True:
-            # 1. 클라이언트로부터 메시지 (슬롯 ID) 수신
-            data = await websocket.receive_text() # data = "Mon-AM-1F"
+            data = await websocket.receive_text()
+            
+            # [신규] 관리자 수동 삭제 (Request 3)
+            try:
+                msg_data = json.loads(data)
+                if msg_data.get("type") == "admin_delete" and user_name == '건우':
+                    slot_id = msg_data.get("slotId")
+                    if slot_id:
+                        print(f"[Admin] 슬롯 삭제 시도: {slot_id}")
+                        # Yellow, Red 양쪽에서 모두 삭제 시도
+                        deleted_from_pending = current_round_selections.pop(slot_id, None)
+                        deleted_from_confirmed = confirmed_reserved_slots.pop(slot_id, None)
+                        
+                        if deleted_from_pending or deleted_from_confirmed:
+                             print(f" > 삭제 성공.")
+                             await broadcast_initial_state() # 갱신된 보드 상태 전파
+                        else:
+                             print(f" > 삭제 실패: 존재하지 않는 슬롯.")
+                    continue # 턴 처리 로직 스킵
+            except json.JSONDecodeError:
+                # 일반 텍스트 메시지(예약)이므로 계속 진행
+                pass
+
+            # --- 일반 예약 로직 (data = "Mon-AM-1F") ---
             
             # 2. 턴 검증
             if not turn_order:
@@ -331,16 +449,16 @@ async def websocket_endpoint(websocket: WebSocket, user_name: str):
                 await websocket.send_text(json.dumps({"type": "error", "message": f"현재 {current_user} 님의 턴입니다."}))
                 continue
             
-            # 3. 슬롯 중복 검증 (Red, Yellow 슬롯인지 확인)
+            # 3. 슬롯 중복 검증
             if data in confirmed_reserved_slots or data in current_round_selections:
                 await websocket.send_text(json.dumps({"type": "error", "message": "이미 선택된 슬롯입니다."}))
                 continue
 
-            # 4. 예약 처리: "버퍼(Yellow)"에 추가
+            # 4. 버퍼(Yellow)에 추가
             print(f"'{user_name}' 님이 '{data}' 슬롯 선택 (버퍼에 추가)")
-            current_round_selections[data] = user_name # 버퍼에 추가
+            current_round_selections[data] = user_name
 
-            # 5. 모든 클라이언트에게 "슬롯이 선택됨(Yellow)" 알림
+            # 5. "슬롯 선택됨(Yellow)" 알림
             await broadcast(json.dumps({
                 "type": "slot_update", 
                 "slotId": data,
@@ -353,18 +471,18 @@ async def websocket_endpoint(websocket: WebSocket, user_name: str):
             await notify_turn()
             
     except WebSocketDisconnect:
-        # 연결이 끊어지면 (정상 종료든, 에러든) 목록에서 제거
-        if user_name in client_connections:
-            del client_connections[user_name]
-        print(f"클라이언트 '{user_name}' 접속 해제. (남은 인원 {len(client_connections)} 명)")
+        pass # 예외 처리는 finally에서
     except Exception as e:
         print(f"에러 발생 (user: {user_name}): {e}")
+    finally:
+        # 접속 종료 시 (정상/비정상)
         if user_name in client_connections:
             del client_connections[user_name]
+            print(f"클라이언트 '{user_name}' 접속 해제. (남은 인원 {len(client_connections)} 명)")
+            await broadcast_user_list() # [신규] 접속자 목록 갱신 (Request 2)
 
 # --- 서버 실행 ---
 if __name__ == "__main__":
     print("서버 시작... http://127.0.0.1:8000")
-
+    # 로컬 테스트 시 Google 인증을 위해 host="127.0.0.1" 사용
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
-
