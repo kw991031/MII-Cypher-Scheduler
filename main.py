@@ -20,7 +20,7 @@ app = FastAPI()
 
 # --- Google Calendar 설정 ---
 CLIENT_SECRET = 'client_secret.json'
-SCOPES = ['https.www.googleapis.com/auth/calendar']
+SCOPES = ['https://www.googleapis.com/auth/calendar']
 CALENDAR_IDS = {
     '1F': 'q2ipgq5e47l7d9g24ibbq08avo@group.calendar.google.com',  # 1층
     '3F': 'cmhg0lmmdk66tmd9nc6ug7fob0@group.calendar.google.com'   # 3층
@@ -367,3 +367,4 @@ if __name__ == "__main__":
     print("서버 시작... http://127.0.0.1:8000")
 
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+
