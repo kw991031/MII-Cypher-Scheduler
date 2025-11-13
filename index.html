@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>실시간 예약 시스템 (V6)</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 10px; background-color: #f9f9f9; }
+        
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr); 
+            gap: 8px;
+            max-width: 1400px;
+            margin: 20px auto;
+        }
+        .grid-header {
+            padding: 10px;
+            font-weight: bold;
+            background-color: #e9ecef;
+            color: #333;
+            text-align: center;
+            border-radius: 5px;
+        }
+        .day-column {
+            display: flex;
+            flex-direction: column;
+            background-color: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 5px;
+        }
+
+        .slot {
+            padding: 12px 8px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            text-align: center;
+            cursor: pointer;
+            background-color: #f8f9fa; /* 기본 */
+            color: #aaa;
+            font-size: 0.9em;
+            margin: 4px;
+            transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+        }
+        
+        /* 1. Green (내 턴) */
+        .slot.available {
+            background-color: #d4edda;
+            color: #155724;
+            font-weight: bold;
+            border-color: #c3e6cb;
+        }
+        .slot.available:hover { background-color: #c3e6cb; }
+
+        /* 2. Yellow (이번 라운드 선택됨) */
+        .slot.pending {
+            background-color: #fff3cd; 
+            color: #856404;
+            border-color: #ffeeba;
+            font-weight: bold;
+            cursor: not-allowed;
+            text-decoration: line-through;
+        }
+
+        /* 3. Red (캘린더 확정) */
+        .slot.reserved {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-color: #f5c6cb;
+            font-weight: bold;
+            cursor: not-allowed;
+            text-decoration: line-through;
+        }
+        
+        .top-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .login-section, .admin-section, .status-section {
+            padding: 5px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .status-section { text-align: right; display: block;}
+        
+        #userNameSelect { padding: 5px; border: 1px solid #ccc; border-radius: 3px; }
+        
+        button { padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer; background-color: #007bff; color: white; }
+        button:hover { background-color: #0056b3; }
+        #commitButton { background-color: #28a745; }
+        #commitButton:hover { background-color: #218838; }
+        
+        #log {
+            margin: 20px auto;
+            max-width: 1400px;
+            border: 1px solid #eee;
+            padding: 10px;
+            height: 120px;
+            overflow-y: scroll;
+            background-color: #fff;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="top-section">
+        <div class="login-section" id="loginBox">
+            <select id="userNameSelect">
+                <option value="">-- 이름 선택 --</option>
+                </select>
+            <button onclick="connect()">연결</button>
+        </div>
+        
+        <div class="admin-section" id="adminBox" style="display: none;">
+            <button onclick="startRound()">[관리자] 새 라운드 시작</button>
+            <button id="commitButton" onclick="commitToCalendar()">[관리자] 캘린더에 추가</button>
+        </div>
+    
+        <div class="status-section" id="statusBox" style="display: none;">
+            <div>접속자: <b id="myName" style="color: #007bff;"></b></div>
+            <div>현재 턴: <b id="currentTurn" style="color: #dc3545;">대기 중...</b></div>
+        </div>
+    </div>
+
+    <h1 style="text-align: center; margin-top: 20px;">실시간 장비 예약 (V6)</h1>
+
+    <div class="grid-container" id="grid">
+        <div class="grid-header">월 (Mon)</div>
+        <div class="grid-header">화 (Tue)</div>
+        <div class="grid-header">수 (Wed)</div>
+        <div class="grid-header">목 (Thu)</div>
+        <div class="grid-header">금 (Fri)</div>
+        <div class="grid-header">토 (Sat)</div>
+        <div class="grid-header">일 (Sun)</div>
+
+        <div class="day-column">
+            <div class="slot" id="Mon-AM-1F">1F-오전</div> <div class="slot" id="Mon-PM-1F">1F-오후</div> <div class="slot" id="Mon-NT-1F">1F-밤</div>
+            <div class="slot" id="Mon-AM-3F">3F-오전</div> <div class="slot" id="Mon-PM-3F">3F-오후</div> <div class="slot" id="Mon-NT-3F">3F-밤</div>
+        </div>
+        <div class="day-column">
+            <div class="slot" id="Tue-AM-1F">1F-오전</div> <div class="slot" id="Tue-PM-1F">1F-오후</div> <div class="slot" id="Tue-NT-1F">1F-밤</div>
+            <div class="slot" id="Tue-AM-3F">3F-오전</div> <div class="slot" id="Tue-PM-3F">3F-오후</div> <div class="slot" id="Tue-NT-3F">3F-밤</div>
+        </div>
+        <div class="day-column">
+            <div class="slot" id="Wed-AM-1F">1F-오전</div> <div class="slot" id="Wed-PM-1F">1F-오후</div> <div class="slot" id="Wed-NT-1F">1F-밤</div>
+            <div class="slot" id="Wed-AM-3F">3F-오전</div> <div class="slot" id="Wed-PM-3F">3F-오후</div> <div class="slot" id="Wed-NT-3F">3F-밤</div>
+        </div>
+        <div class="day-column">
+            <div class="slot" id="Thu-AM-1F">1F-오전</div> <div class="slot" id="Thu-PM-1F">1F-오후</div> <div class="slot" id="Thu-NT-1F">1F-밤</div>
+            <div class="slot" id="Thu-AM-3F">3F-오전</div> <div class="slot" id="Thu-PM-3F">3F-오후</div> <div class="slot" id="Thu-NT-3F">3F-밤</div>
+        </div>
+        <div class="day-column">
+            <div class="slot" id="Fri-AM-1F">1F-오전</div> <div class="slot" id="Fri-PM-1F">1F-오후</div> <div class="slot" id="Fri-NT-1F">1F-밤</div>
+            <div class="slot" id="Fri-AM-3F">3F-오전</div> <div class="slot" id="Fri-PM-3F">3F-오후</div> <div class="slot" id="Fri-NT-3F">3F-밤</div>
+        </div>
+        <div class="day-column">
+            <div class="slot" id="Sat-AM-1F">1F-오전</div> <div class="slot" id="Sat-PM-1F">1F-오후</div> <div class="slot" id="Sat-NT-1F">1F-밤</div>
+            <div class="slot" id="Sat-AM-3F">3F-오전</div> <div class="slot" id="Sat-PM-3F">3F-오후</div> <div class="slot" id="Sat-NT-3F">3F-밤</div>
+        </div>
+        <div class="day-column">
+            <div class="slot" id="Sun-AM-1F">1F-오전</div> <div class="slot" id="Sun-PM-1F">1F-오후</div> <div class="slot" id="Sun-NT-1F">1F-밤</div>
+            <div class="slot" id="Sun-AM-3F">3F-오전</div> <div class="slot" id="Sun-PM-3F">3F-오후</div> <div class="slot" id="Sun-NT-3F">3F-밤</div>
+        </div>
+    </div>
+    
+    <h3>실시간 로그:</h3>
+    <div id="log"></div>
+
+    <script>
+        let ws; 
+        let myName = ""; 
+        const logDiv = document.getElementById("log");
+        const statusTurn = document.getElementById("currentTurn");
+        const allSlots = document.querySelectorAll(".day-column .slot");
+        const userNameSelect = document.getElementById("userNameSelect");
+        
+        const loginBox = document.getElementById("loginBox");
+        const statusBox = document.getElementById("statusBox");
+        const adminBox = document.getElementById("adminBox");
+
+        const nameMap = {
+            '건우': 'KW', '구민': 'GM', '채율': 'CY', '윤아': 'YA', '채원': 'CW',
+            '동훈': 'DH', '성현': 'KSH', '연규': 'YG', '상길': 'PSG', '준호': 'YJH',
+            '윤한': 'YH', '의창': 'UC', '웨이슈엔': 'WH', '영우': 'YW', '진호': 'JH',
+            '성곤': 'SG', '밧조릭': 'BB', '동연': 'DY'
+        };
+
+        // 드롭다운 메뉴 채우기
+        Object.keys(nameMap).sort().forEach(name => {
+            const option = document.createElement("option");
+            option.value = name;
+            option.text = name;
+            userNameSelect.appendChild(option);
+        });
+
+        // 슬롯의 원본 텍스트 저장
+        allSlots.forEach(slot => {
+            slot.dataset.originalText = slot.innerText;
+        });
+
+        function addLog(message) {
+            logDiv.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${message}</div>`;
+            // [오타 수정] log_div -> logDiv
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        // 보드 초기화 함수
+        function resetBoard() {
+            addLog("[시스템] 보드 상태를 초기화합니다...");
+            allSlots.forEach(slot => {
+                slot.classList.remove("available", "pending", "reserved");
+                slot.innerText = slot.dataset.originalText;
+            });
+        }
+
+        // 슬롯 활성화/비활성화 토글
+        function toggleSlots(isMyTurn) {
+            allSlots.forEach(slot => {
+                if (!slot.classList.contains("reserved") && !slot.classList.contains("pending")) {
+                    if (isMyTurn) {
+                        slot.classList.add("available");
+                    } else {
+                        slot.classList.remove("available");
+                    }
+                }
+            });
+        }
+
+        // 관리자: 라운드 시작
+        async function startRound() {
+            addLog("[관리자] 새 라운드 시작 요청...");
+            try {
+                const response = await fetch("/start_round", { method: "POST" });
+                const result = await response.json();
+                if (result.status === 'error') {
+                    addLog(`[에러] ${result.message}`);
+                }
+            } catch (e) {
+                addLog(`[에러] 라운드 시작 실패: ${e.message}`);
+            }
+        }
+
+        // 관리자: 캘린더에 일괄 추가
+        async function commitToCalendar() {
+            addLog("[관리자] 캘린더 일괄 추가 요청...");
+            try {
+                const response = await fetch("/commit_calendar", { method: "POST" });
+                const result = await response.json();
+                
+                if (result.status === 'error') {
+                    addLog(`[에러] ${result.message}`);
+                } else {
+                    addLog(`[성공] 캘린더에 ${result.committed_count}개 일정 추가 완료.`);
+                }
+            } catch (e) {
+                addLog(`[에러] 캘린더 추가 실패: ${e.message}`);
+            }
+        }
+
+        // WebSocket 연결 함수
+        function connect() {
+            myName = userNameSelect.value;
+            if (!myName) {
+                alert("이름을 선택하세요.");
+                return;
+            }
+
+            // UI 변경
+            loginBox.style.display = "none";
+            statusBox.style.display = "flex";
+            document.getElementById("myName").innerText = myName;
+            addLog(`<b>${myName}</b> 님으로 연결 시도...`);
+            
+            // 관리자 버튼 표시
+            if (myName === '건우') {
+                adminBox.style.display = "flex";
+                addLog("[시스템] 관리자 권한으로 접속했습니다.");
+            }
+
+            const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+            const wsHost = window.location.host;
+            ws = new WebSocket(`${wsProtocol}//${wsHost}/ws/${myName}`);
+
+            // 서버로부터 메시지 수신
+            ws.onmessage = function(event) {
+                const message = JSON.parse(event.data);
+
+                switch (message.type) {
+                    
+                    case "initial_state":
+                        resetBoard();
+                        // 1-1. 확정된 예약(Red) 적용
+                        for (const [slotId, initial] of Object.entries(message.reserved)) {
+                            const slot = document.getElementById(slotId);
+                            if (slot) {
+                                slot.classList.add("reserved");
+                                slot.innerText = initial || '??';
+                            }
+                        }
+                        // 1-2. 현재 라운드 예약(Yellow) 적용
+                        for (const [slotId, userName] of Object.entries(message.pending)) {
+                            const slot = document.getElementById(slotId);
+                            if (slot) {
+                                slot.classList.add("pending");
+                                slot.innerText = nameMap[userName] || '??';
+                            }
+                        }
+                        break;
+                    
+                    case "round_started":
+                        addLog(`<b>[라운드 시작] 순서: ${message.order.join(' → ')}</b>`);
+                        break;
+                    
+                    case "slot_update":
+                        const slotElement = document.getElementById(message.slotId);
+                        if (slotElement) {
+                            slotElement.classList.remove("available");
+                            slotElement.classList.add("pending");
+                            slotElement.innerText = message.initial; 
+                        }
+                        addLog(`[알림] ${message.user} 님이 ${message.slotId} 선택 (대기)`);
+                        break;
+                    
+                    case "calendar_committed":
+                        addLog("[시스템] 캘린더에 일괄 추가되었습니다. 보드를 동기화합니다.");
+                        for (const [slotId, initial] of Object.entries(message.committed_data)) {
+                            const slot = document.getElementById(slotId);
+                            if (slot) {
+                                slot.classList.remove("pending");
+                                slot.classList.add("reserved");
+Example:                             slot.innerText = initial;
+                            }
+                        }
+                        break;
+                    
+                    case "turn_update":
+                        if (message.user === "ROUND_END") {
+                            statusTurn.innerText = "모든 턴 종료";
+                            statusTurn.style.color = "#888";
+                            toggleSlots(false); 
+                        } else {
+                            statusTurn.innerText = message.user;
+                            if (message.user === myName) {
+                                addLog(`<b>--- ${myName} 님, 차례입니다! ---</b>`);
+                                statusTurn.style.color = "#28a745";
+                                toggleSlots(true);
+                            } else {
+                                statusTurn.style.color = "#dc3545";
+                                toggleSlots(false);
+                            }
+                        }
+                        break;
+                        
+                    case "error":
+                        addLog(`[에러] ${message.message}`);
+                        // 중복 접속 에러 시, 서버가 연결을 끊으면 onclose가 트리거됨
+                        break;
+                }
+            };
+            
+            ws.onopen = () => addLog(`[알림] ${myName} 님, 서버에 연결되었습니다.`);
+            
+            // 연결 종료 시 UI 초기화
+            ws.onclose = () => {
+                addLog("[알림] 서버 연결이 끊어졌습니다.");
+                // 로그인 화면으로 복귀
+                loginBox.style.display = "flex";
+                statusBox.style.display = "none";
+                adminBox.style.display = "none";
+                statusTurn.innerText = "대기 중...";
+                ws = null; // 웹소켓 객체 정리
+            };
+            
+            ws.onerror = (err) => {
+                addLog(`[WebSocket 에러] ${err ? err.message : 'Unknown error'}`);
+            };
+        }
+
+        // 슬롯 클릭 이벤트
+        allSlots.forEach(slot => {
+            slot.addEventListener("click", function() {
+                const slotId = slot.id; 
+                
+                if (!ws) {
+                    addLog("[알림] 먼저 '연결' 버튼을 눌러주세요.");
+                    return;
+                }
+                if (slot.classList.contains("reserved") || slot.classList.contains("pending")) {
+                    addLog(`[알림] ${slotId} 는 이미 선택된 슬롯입니다.`);
+                    return;
+                }
+                if (!slot.classList.contains("available")) {
+                    addLog("[알림] 내 턴이 아닙니다. (현재 턴: " + statusTurn.innerText + ")");
+                    return;
+                }
+                
+                addLog(`[전송] ${slotId} 예약 시도...`);
+                ws.send(slotId);
+            });
+        });
+    </script>
+</body>
+</html>
