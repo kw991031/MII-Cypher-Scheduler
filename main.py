@@ -1,15 +1,23 @@
-# main.py (V8)
+# main.py (V8.1 - 버그 수정)
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles # [V8] 추가
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import json
 import random
 import datetime
 import os
 from typing import Any
+
+# --- Google Calendar API Imports ---
+import google.auth
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+# [V8.1 버그 수정] 아래 줄 추가
+from google_auth_oauthlib.flow import InstalledAppFlow 
+from googleapiclient.discovery import build
 
 # --- FastAPI 앱 생성 ---
 app = FastAPI()
@@ -63,6 +71,7 @@ class GCalendar:
             if not self.credentials:
                 print("유효한 Google Credential이 없습니다. 로컬 인증 흐름(InstalledAppFlow)을 시작합니다.")
                 try:
+                    # [V8.1 버그 수정] 이제 'InstalledAppFlow'가 정의됨
                     flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET, SCOPES)
                     self.credentials = flow.run_local_server(port=0)
                     with open(self.storage_name, 'w') as token:
@@ -92,24 +101,20 @@ calendar_service = GCalendar("Calendar.storage")
 
 # --- 사용자 및 턴 관리 (V8) ---
 
-# [V8] 별도 파일에서 name_map 로드 (Request 2)
 try:
     with open('names.json', 'r', encoding='utf-8') as f:
         name_map = json.load(f)
     print(f"names.json 로드 성공. {len(name_map)}명.")
 except FileNotFoundError:
     print("[에러] names.json 파일을 찾을 수 없습니다!")
-    name_map = {"건우": "KW"} # 비상용
+    name_map = {"건우": "KW"}
 
-# [V8] client_connections 구조 변경 (Request 1)
-# {"건우": {"ws": WebSocket, "participating": True}, ...}
 client_connections: dict[str, dict[str, Any]] = {}
-
 turn_order: list[str] = []
 current_turn_index: int = 0
 
 # --- 상태 관리 변수 (V7과 동일) ---
-week_mode = 1 # 0:이번주, 1:다음주, 2:다다음주
+week_mode = 1
 confirmed_reserved_slots: dict[str, str] = {}
 current_round_selections: dict[str, str] = {}
 
@@ -124,15 +129,13 @@ async def get_root():
         html = "<html><body><h1>index.html 파일을 찾을 수 없습니다.</h1></body></html>"
     return HTMLResponse(html)
 
-# [V8] 신규 API: 이름 목록 전송 (Request 2)
 @app.get("/get_names")
 async def get_names():
     return {"names": list(name_map.keys())}
 
 
-# --- WebSocket 헬퍼 함수 (V8 수정) ---
+# --- WebSocket 헬퍼 함수 (V8) ---
 async def broadcast(message: str):
-    """(V8) 모든 연결된 클라이언트에게 JSON 메시지 전송"""
     for user_data in client_connections.values():
         client_ws = user_data.get("ws")
         if client_ws:
@@ -142,7 +145,6 @@ async def broadcast(message: str):
                 print(f"브로드캐스트 실패: {e}")
 
 async def notify_turn():
-    # (V7과 동일)
     global current_turn_index, turn_order
     if current_turn_index < len(turn_order):
         current_user = turn_order[current_turn_index]
@@ -152,7 +154,6 @@ async def notify_turn():
     print(f"턴 알림 전송: {message}")
     await broadcast(message)
 
-# [V8] 수정: 접속자 목록 (참여 상태 포함) 브로드캐스트 (Request 1)
 async def broadcast_user_list():
     user_list = []
     for user_name, data in client_connections.items():
@@ -163,11 +164,16 @@ async def broadcast_user_list():
     await broadcast(json.dumps({"type": "user_list_update", "users": user_list}))
 
 async def broadcast_initial_state():
-    # (V7과 동일)
+    # [V8.4 수정 반영] Yellow 슬롯(pending)도 이름 대신 이니셜을 전송
+    pending_with_initials = {
+        slot_id: name_map.get(user_name, "??") 
+        for slot_id, user_name in current_round_selections.items()
+    }
+    
     await broadcast(json.dumps({
         "type": "initial_state",
-        "reserved": confirmed_reserved_slots,
-        "pending": current_round_selections
+        "reserved": confirmed_reserved_slots, # Red ({slot_id: initial})
+        "pending": pending_with_initials # Yellow ({slot_id: initial})
     }))
 
 # 날짜 계산 헬퍼 함수 (V7과 동일)
@@ -255,17 +261,14 @@ async def manual_add(item: ManualAddRequest):
         raise HTTPException(status_code=500, detail=f"수동 추가 실패: {e}")
 
 
-# --- [V8 수정] 라운드 시작 API (참여자 필터링) ---
+# --- [V8] 라운드 시작 API (참여자 필터링) ---
 @app.post("/start_round")
 async def start_round():
     global turn_order, current_turn_index, current_round_selections
-    
     print("새 라운드 시작.")
-
-    # 1. 이번 라운드 버퍼(Yellow) 초기화 (Red는 유지)
     current_round_selections = {}
     
-    # 2. [V8] "참여(participating: True)"로 설정한 접속자만 셔플 (Request 1)
+    # [V8] "참여(participating: True)"로 설정한 접속자만 셔플
     participants = [
         name for name, data in client_connections.items() 
         if data.get("participating", True)
@@ -279,15 +282,9 @@ async def start_round():
     current_turn_index = 0
     print(f"새 라운드 순서 ({len(participants)}명): {turn_order}")
 
-    # 3. "초기 상태" 전파
     await broadcast_initial_state()
-    
-    # 4. 순서 공지
     await broadcast(json.dumps({"type": "round_started", "order": turn_order}))
-    
-    # 5. 첫 턴 공지
     await notify_turn() 
-    
     return {"status": "round started", "turn_order": turn_order}
 
 
@@ -328,7 +325,7 @@ async def commit_calendar():
         raise HTTPException(status_code=500, detail=f"캘린더 일괄 추가 실패: {e}")
 
 
-# --- [V8 수정] WebSocket 핵심 로직 ---
+# --- [V8] WebSocket 핵심 로직 ---
 @app.websocket("/ws/{user_name}")
 async def websocket_endpoint(websocket: WebSocket, user_name: str):
     
@@ -348,37 +345,33 @@ async def websocket_endpoint(websocket: WebSocket, user_name: str):
         await websocket.close(code=1003, reason="Duplicate connection")
         return
 
-    # [V8] 접속 성공: "참여" 상태를 기본값 True로 설정 (Request 1)
+    # [V8] 접속 성공: "참여" 상태를 기본값 True로 설정
     client_connections[user_name] = {"ws": websocket, "participating": True}
     print(f"클라이언트 '{user_name}' 접속. (총 {len(client_connections)} 명)")
-    await broadcast_user_list() # 접속자 목록 갱신
+    await broadcast_user_list()
     
-    # 접속 시 "현재 상태" 전송
     await websocket.send_text(json.dumps({
         "type": "initial_state",
         "reserved": confirmed_reserved_slots,
-        "pending": current_round_selections
+        "pending": {slot_id: name_map.get(name, "??") for slot_id, name in current_round_selections.items()} # [V8.4]
     }))
     
-    # 현재 턴 상태 전송
     current_user = "대기 중..."
     if turn_order:
         current_user = turn_order[current_turn_index] if current_turn_index < len(turn_order) else "ROUND_END"
     await websocket.send_text(json.dumps({"type": "turn_update", "user": current_user}))
     
-    # 현재 주간 모드 전송
     await websocket.send_text(json.dumps({"type": "week_mode_update", "mode": week_mode}))
 
     try:
         while True:
             data = await websocket.receive_text()
             
-            # [V8] JSON 메시지(관리자 삭제, 참여 토글) 처리
             try:
                 msg_data = json.loads(data)
                 msg_type = msg_data.get("type")
 
-                # 1. 관리자 수동 삭제 (V7)
+                # 1. 관리자 수동 삭제
                 if msg_type == "admin_delete" and user_name == '건우':
                     slot_id = msg_data.get("slotId")
                     if slot_id:
@@ -390,20 +383,19 @@ async def websocket_endpoint(websocket: WebSocket, user_name: str):
                              await broadcast_initial_state()
                         else:
                              print(f" > 삭제 실패: 존재하지 않는 슬롯.")
-                    continue # 턴 처리 로직 스킵
+                    continue
 
-                # 2. [신규] 참여 상태 변경 (Request 1)
+                # 2. [V8] 참여 상태 변경
                 elif msg_type == "set_participation":
                     status = msg_data.get("status", True)
                     if user_name in client_connections:
                         client_connections[user_name]["participating"] = status
                         print(f"'{user_name}' 님 참여 상태 변경 -> {status}")
-                        await broadcast_user_list() # 갱신된 목록 모두에게 전파
-                    continue # 턴 처리 로직 스킵
+                        await broadcast_user_list()
+                    continue
 
             except json.JSONDecodeError:
-                # 일반 텍스트 메시지(예약)이므로 계속 진행
-                pass
+                pass # 일반 예약 메시지(String)이므로 계속 진행
 
             # --- 일반 예약 로직 (data = "Mon-AM-1F") ---
             
@@ -441,7 +433,7 @@ async def websocket_endpoint(websocket: WebSocket, user_name: str):
             await notify_turn()
             
     except WebSocketDisconnect:
-        pass # 예외 처리는 finally에서
+        pass
     except Exception as e:
         print(f"에러 발생 (user: {user_name}): {e}")
     finally:
@@ -449,11 +441,9 @@ async def websocket_endpoint(websocket: WebSocket, user_name: str):
         if user_name in client_connections:
             del client_connections[user_name]
             print(f"클라이언트 '{user_name}' 접속 해제. (남은 인원 {len(client_connections)} 명)")
-            await broadcast_user_list() # 접속자 목록 갱신
+            await broadcast_user_list()
 
 # --- 서버 실행 ---
 if __name__ == "__main__":
-    # [V8] 정적 파일(names.json) 서빙을 위해 /static 마운트 추가
-    app.mount("/static", StaticFiles(directory="static"), name="static")
     print("서버 시작... http://127.0.0.1:8000")
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

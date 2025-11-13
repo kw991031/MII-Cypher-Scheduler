@@ -7,29 +7,53 @@
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 10px; background-color: #f9f9f9; }
         
-        /* ... (grid, slot, panel 등 V7 CSS 스타일 동일) ... */
         .grid-container { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; max-width: 1400px; margin: 20px auto; }
         .grid-header { padding: 10px; font-weight: bold; background-color: #e9ecef; color: #333; text-align: center; border-radius: 5px; }
         .day-column { display: flex; flex-direction: column; background-color: #fff; border: 1px solid #dee2e6; border-radius: 5px; padding: 5px; }
-        .slot { padding: 12px 8px; border: 1px solid #ccc; border-radius: 5px; text-align: center; cursor: pointer; background-color: #f8f9fa; color: #aaa; font-size: 0.9em; margin: 4px; transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
+
+        .slot {
+            padding: 12px 8px; border: 1px solid #ccc; border-radius: 5px;
+            text-align: center; cursor: pointer; background-color: #f8f9fa;
+            color: #aaa; font-size: 0.9em; margin: 4px;
+            transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+        }
+        
         .slot.available { background-color: #d4edda; color: #155724; font-weight: bold; border-color: #c3e6cb; }
         .slot.available:hover { background-color: #c3e6cb; }
         .slot.pending { background-color: #fff3cd; color: #856404; border-color: #ffeeba; font-weight: bold; cursor: not-allowed; text-decoration: line-through; }
         .slot.reserved { background-color: #f8d7da; color: #721c24; border-color: #f5c6cb; font-weight: bold; cursor: not-allowed; text-decoration: line-through; }
-        .slot.pending.admin-hover:hover, .slot.reserved.admin-hover:hover { background-color: #000; color: white; cursor: crosshair; }
-        .top-section { display: flex; justify-content: space-between; align-items: stretch; max-width: 1400px; margin: 0 auto; padding: 10px; background-color: #fff; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); gap: 10px; }
+        .slot.pending.admin-hover:hover, .slot.reserved.admin-hover:hover {
+            background-color: #000;
+            color: white;
+            cursor: crosshair;
+        }
+
+        .top-section {
+            display: flex; justify-content: space-between; align-items: stretch;
+            max-width: 1400px; margin: 0 auto; padding: 10px;
+            background-color: #fff; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            gap: 10px;
+        }
         .login-section { display: flex; gap: 10px; align-items: center; }
         .status-section { text-align: right; flex-shrink: 0; }
-        .admin-panel { display: none; flex-wrap: wrap; gap: 10px; align-items: center; border-left: 2px solid #007bff; padding-left: 10px; }
+        
+        .admin-panel {
+            display: none; flex-wrap: wrap; gap: 10px;
+            align-items: center; border-left: 2px solid #007bff; padding-left: 10px;
+        }
         .admin-group { display: flex; flex-direction: column; gap: 5px; }
         .admin-group label { font-size: 0.8em; font-weight: bold; color: #555; }
         .admin-group button, .admin-group select { padding: 5px; }
-        .user-list-section { display: none; flex-grow: 1; padding: 5px; border-left: 2px solid #ccc; margin-left: 10px; }
+        
+        .user-list-section {
+            display: none; flex-grow: 1; padding: 5px;
+            border-left: 2px solid #ccc; margin-left: 10px;
+        }
         #userList { display: flex; flex-wrap: wrap; gap: 8px; }
         .user-chip { background-color: #e9ecef; color: #333; padding: 3px 8px; border-radius: 10px; font-size: 0.9em; }
         .user-chip.admin { background-color: #007bff; color: white; font-weight: bold; }
         
-        /* [V8 신규] 라운드 미참여 스타일 (Request 1) */
+        /* [V8] 라운드 미참여 스타일 (Request 1) */
         .user-chip.not-participating {
             background-color: #f8f9fa;
             color: #aaa;
@@ -45,7 +69,11 @@
         button.success { background-color: #28a745; }
         button.success:hover { background-color: #218838; }
         
-        #log { margin: 20px auto; max-width: 1400px; border: 1px solid #eee; padding: 10px; height: 120px; overflow-y: scroll; background-color: #fff; border-radius: 5px; }
+        #log {
+            margin: 20px auto; max-width: 1400px; border: 1px solid #eee;
+            padding: 10px; height: 120px; overflow-y: scroll;
+            background-color: #fff; border-radius: 5px;
+        }
     </style>
 </head>
 <body>
@@ -67,7 +95,7 @@
             <div>접속자: <b id="myName" style="color: #007bff;"></b></div>
             <div>현재 턴: <b id="currentTurn" style="color: #dc3545;">대기 중...</b></div>
             <div>주간 모드: <b id="currentWeekMode" style="color: #17a2b8;"></b></div>
-            <div id="participationBox" style="margin-top: 5px; text-align: left;">
+            <div id="participationBox" style="margin-top: 5px; text-align: left; display: none;">
                 <input type="checkbox" id="participationCheck" onchange="toggleParticipation()" checked>
                 <label for="participationCheck" style="font-size: 0.9em;">다음 라운드 참여</label>
             </div>
@@ -164,10 +192,11 @@
         const manualTimeSelect = document.getElementById("manualTime");
         const manualFloorSelect = document.getElementById("manualFloor");
 
-        // [V8 신규] 페이지 로드 시 이름 목록 가져오기 (Request 2)
+        // [V8] 페이지 로드 시 이름 목록 가져오기 (Request 2)
         document.addEventListener("DOMContentLoaded", async () => {
             try {
-                const response = await fetch("/get_names");
+                // nameMap 대신 API로 이름 목록만 가져옴
+                const response = await fetch("/get_names"); 
                 const data = await response.json();
                 const names = data.names.sort();
                 
@@ -300,11 +329,10 @@
         
         // [V8 신규] 참여 상태 변경 (Request 1)
         function toggleParticipation() {
+            if (!ws) return;
             const isChecked = participationCheck.checked;
             addLog(`[시스템] 다음 라운드 참여 상태를 [${isChecked ? '참여' : '불참'}]으로 변경합니다.`);
-            if (ws) {
-                ws.send(JSON.stringify({"type": "set_participation", "status": isChecked}));
-            }
+            ws.send(JSON.stringify({"type": "set_participation", "status": isChecked}));
         }
         
         // --- WebSocket 연결 함수 (V8 수정) ---
@@ -340,7 +368,7 @@
                     
                     case "initial_state":
                         resetBoard();
-                        // [V8] nameMap 의존성 제거
+                        // Red 슬롯
                         for (const [slotId, initial] of Object.entries(message.reserved)) {
                             const slot = document.getElementById(slotId);
                             if (slot) {
@@ -348,47 +376,19 @@
                                 slot.innerText = initial || '??';
                             }
                         }
-                        for (const [slotId, userName] of Object.entries(message.pending)) {
+                        // [V8.4] Yellow 슬롯 (이제 백엔드가 이니셜을 보내줌)
+                        for (const [slotId, initial] of Object.entries(message.pending)) {
                             const slot = document.getElementById(slotId);
                             if (slot) {
                                 slot.classList.add("pending");
-                                // [V8] nameMap 대신 서버가 보낸 userName을 임시로 표시
-                                // (이 정보는 불완전할 수 있으나, V8 백엔드에 nameMap이 있으므로
-                                //  initial_state에서 pending도 {ID: initial}로 보내는게 더 나음)
-                                // -> 아님, V8 백엔드 slot_update가 initial을 보내줌.
-                                // -> 하지만 V8 백엔드 initial_state의 pending은 {ID: 이름}임.
-                                // -> [개선 필요] 백엔드가 initial_state의 pending을 {ID: {name:..., initial:...}}로 보내야 함.
-                                // -> [임시 조치] 일단 이름이라도 표시
-                                slot.innerText = userName; 
+                                slot.innerText = initial || '??';
                             }
-                        }
-                        // --> [V8 수정] 위의 nameMap을 사용하는 코드를 다시 확인
-                        // `initial_state`의 `pending`은 `{slotId: userName}`.
-                        // `nameMap`이 없으면 이니셜을 표시할 수 없음.
-                        // [V8.1 해결책] `initial_state` 메시지를 보낼 때 백엔드가 `nameMap`을 참조하여 이니셜을 보내도록 수정해야 함.
-                        // -> [V8.2] 아님! `connect()`할 때 `nameMap`을 다시 `fetch`하면 됨.
-                        // --> [V8.3] `get_names`만 `fetch`하고, `nameMap`은 사용하지 않는 것이 최선.
-                        // --> [V8.4] 백엔드의 `initial_state`가 `pending`을 `{"slotId": "KW"}` (이니셜)로 보내도록 수정해야 함.
-                        
-                        // [V8.4 적용을 위한 main.py 수정 제안 - 지금은 안함, 프론트엔드만 수정]
-                        // -> `broadcast_initial_state`에서 `pending`을 변환
-                        // pending_with_initials = {slot_id: name_map[name] for slot_id, name in current_round_selections.items()}
-                        // "pending": pending_with_initials
-                        
-                        // [V8.4 가정 하에 프론트엔드 수정]
-                        for (const [slotId, initial] of Object.entries(message.pending)) {
-                             const slot = document.getElementById(slotId);
-                             if (slot) {
-                                 slot.classList.add("pending");
-                                 slot.innerText = initial || '??';
-                             }
                         }
                         break;
                     
                     // [V8 수정] 접속자 목록 갱신 (Request 1)
                     case "user_list_update":
                         userListDiv.innerHTML = "";
-                        // [V8] 이름순 정렬
                         message.users.sort((a, b) => a.name.localeCompare(b.name));
                         
                         message.users.forEach(user => {
