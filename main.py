@@ -36,17 +36,45 @@ class GCalendar:
         self.service = None
 
     def build_service(self):
-        if os.path.exists(self.storage_name):
-            self.credentials = Credentials.from_authorized_user_file(self.storage_name, SCOPES)
-        if not self.credentials or not self.credentials.valid:
-            if self.credentials and self.credentials.expired and self.credentials.refresh_token:
-                self.credentials.refresh(Request())
+            storage_content = os.environ.get('CALENDAR_STORAGE_JSON') # 1. 환경 변수에서 토큰(JSON 텍스트) 읽기
+            
+            if storage_content:
+                print("환경 변수에서 Google Credential 로드 시도...")
+                try:
+                    # 2. 텍스트(JSON)를 파싱하여 Credentials 객체 생성
+                    creds_info = json.loads(storage_content)
+                    self.credentials = Credentials.from_authorized_user_info(creds_info, SCOPES)
+                except Exception as e:
+                    print(f"환경 변수 로드 실패: {e}")
+                    self.credentials = None
             else:
-                flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET, SCOPES)
-                self.credentials = flow.run_local_server(port=0)
-            with open(self.storage_name, 'w') as token:
-                token.write(self.credentials.to_json())
-        self.service = build('calendar', 'v3', credentials=self.credentials)
+                print("CALENDAR_STORAGE_JSON 환경 변수가 없습니다.")
+                self.credentials = None
+    
+            # 3. 토큰이 유효하지 않거나 만료되었는지 확인
+            if not self.credentials or not self.credentials.valid:
+                if self.credentials and self.credentials.expired and self.credentials.refresh_token:
+                    print("토큰 만료. 리프레시 시도...")
+                    try:
+                        self.credentials.refresh(Request())
+                        # (참고: Render는 ephemeral 파일 시스템이라 어차피 '저장'은 안 되지만,
+                        #  메모리상에서는 갱신되어 세션 동안 문제없이 작동함)
+                    except Exception as e:
+                        print(f"토큰 리프레시 실패: {e}")
+                        # 리프레시 실패 시, 인증을 처음부터 다시 해야 함 (로컬에서 1번 과정 다시)
+                        # (V6에서는 로컬 인증 흐름을 제거했으므로 에러 발생)
+                        raise Exception("Google Auth Refresh Failed. 로컬에서 Calendar.storage를 갱신하고 환경 변수를 다시 설정해야 합니다.")
+                else:
+                    # 4. [중요] 로컬 서버 인증 흐름(InstalledAppFlow)은 서버에서 실행되면 안 됨.
+                    # 이 코드가 실행된다는 것은 CALENDAR_STORAGE_JSON 환경 변수가 없거나 잘못되었다는 뜻.
+                    print("유효한 Google Credential이 없습니다. 배포 환경을 확인하세요.")
+                    # V6에서는 로컬 인증 흐름(flow.run...)을 완전히 제거했으므로, 여기서 멈추는 게 맞음.
+                    # (만약 로컬 테스트를 위해 남겨두고 싶다면, 
+                    #  V5 코드의 else: flow = ... 부분을 여기에 추가할 수 있음)
+                    raise Exception("Google Auth Error. CALENDAR_STORAGE_JSON 환경 변수를 확인하세요.")
+    
+            print("Google Credential 로드 성공.")
+            self.service = build('calendar', 'v3', credentials=self.credentials)
 
     def get_events(self, calendar_id, start, end):
         # (V6에서는 사용되지 않음)
@@ -337,4 +365,5 @@ async def websocket_endpoint(websocket: WebSocket, user_name: str):
 # --- 서버 실행 ---
 if __name__ == "__main__":
     print("서버 시작... http://127.0.0.1:8000")
+
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
