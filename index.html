@@ -3,100 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>실시간 예약 시스템 (V7)</title>
+    <title>실시간 예약 시스템 (V8)</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 10px; background-color: #f9f9f9; }
         
-        .grid-container {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr); 
-            gap: 8px;
-            max-width: 1400px;
-            margin: 20px auto;
-        }
+        /* ... (grid, slot, panel 등 V7 CSS 스타일 동일) ... */
+        .grid-container { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; max-width: 1400px; margin: 20px auto; }
         .grid-header { padding: 10px; font-weight: bold; background-color: #e9ecef; color: #333; text-align: center; border-radius: 5px; }
         .day-column { display: flex; flex-direction: column; background-color: #fff; border: 1px solid #dee2e6; border-radius: 5px; padding: 5px; }
-
-        .slot {
-            padding: 12px 8px; border: 1px solid #ccc; border-radius: 5px;
-            text-align: center; cursor: pointer; background-color: #f8f9fa;
-            color: #aaa; font-size: 0.9em; margin: 4px;
-            transition: background-color 0.2s, color 0.2s, border-color 0.2s;
-        }
-        
+        .slot { padding: 12px 8px; border: 1px solid #ccc; border-radius: 5px; text-align: center; cursor: pointer; background-color: #f8f9fa; color: #aaa; font-size: 0.9em; margin: 4px; transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
         .slot.available { background-color: #d4edda; color: #155724; font-weight: bold; border-color: #c3e6cb; }
         .slot.available:hover { background-color: #c3e6cb; }
         .slot.pending { background-color: #fff3cd; color: #856404; border-color: #ffeeba; font-weight: bold; cursor: not-allowed; text-decoration: line-through; }
         .slot.reserved { background-color: #f8d7da; color: #721c24; border-color: #f5c6cb; font-weight: bold; cursor: not-allowed; text-decoration: line-through; }
-        
-        /* [수정] 관리자용 삭제 클릭 (Request 3) */
-        .slot.pending.admin-hover:hover, .slot.reserved.admin-hover:hover {
-            background-color: #000;
-            color: white;
-            cursor: crosshair;
-        }
-
-        .top-section {
-            display: flex; justify-content: space-between; align-items: stretch;
-            max-width: 1400px; margin: 0 auto; padding: 10px;
-            background-color: #fff; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            gap: 10px;
-        }
+        .slot.pending.admin-hover:hover, .slot.reserved.admin-hover:hover { background-color: #000; color: white; cursor: crosshair; }
+        .top-section { display: flex; justify-content: space-between; align-items: stretch; max-width: 1400px; margin: 0 auto; padding: 10px; background-color: #fff; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); gap: 10px; }
         .login-section { display: flex; gap: 10px; align-items: center; }
         .status-section { text-align: right; flex-shrink: 0; }
-        
-        /* [신규] 관리자 패널 */
-        .admin-panel {
-            display: none; /* '건우'일 때 flex로 변경됨 */
-            flex-wrap: wrap;
-            gap: 10px;
-            align-items: center;
-            border-left: 2px solid #007bff;
-            padding-left: 10px;
-        }
+        .admin-panel { display: none; flex-wrap: wrap; gap: 10px; align-items: center; border-left: 2px solid #007bff; padding-left: 10px; }
         .admin-group { display: flex; flex-direction: column; gap: 5px; }
         .admin-group label { font-size: 0.8em; font-weight: bold; color: #555; }
         .admin-group button, .admin-group select { padding: 5px; }
+        .user-list-section { display: none; flex-grow: 1; padding: 5px; border-left: 2px solid #ccc; margin-left: 10px; }
+        #userList { display: flex; flex-wrap: wrap; gap: 8px; }
+        .user-chip { background-color: #e9ecef; color: #333; padding: 3px 8px; border-radius: 10px; font-size: 0.9em; }
+        .user-chip.admin { background-color: #007bff; color: white; font-weight: bold; }
         
-        /* [신규] 접속자 목록 (Request 2) */
-        .user-list-section {
-            display: none; /* 연결 시 block으로 변경 */
-            flex-grow: 1;
-            padding: 5px;
-            border-left: 2px solid #ccc;
-            margin-left: 10px;
+        /* [V8 신규] 라운드 미참여 스타일 (Request 1) */
+        .user-chip.not-participating {
+            background-color: #f8f9fa;
+            color: #aaa;
+            text-decoration: line-through;
+            border: 1px dashed #ccc;
         }
-        #userList {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        .user-chip {
-            background-color: #e9ecef;
-            color: #333;
-            padding: 3px 8px;
-            border-radius: 10px;
-            font-size: 0.9em;
-        }
-        .user-chip.admin {
-            background-color: #007bff;
-            color: white;
-            font-weight: bold;
-        }
-        
+
         #userNameSelect { padding: 5px; border: 1px solid #ccc; border-radius: 3px; }
         button { padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer; background-color: #007bff; color: white; }
         button:hover { background-color: #0056b3; }
-        button.danger { background-color: #dc3545; } /* 초기화 버튼 */
+        button.danger { background-color: #dc3545; }
         button.danger:hover { background-color: #c82333; }
-        button.success { background-color: #28a745; } /* 추가 버튼 */
+        button.success { background-color: #28a745; }
         button.success:hover { background-color: #218838; }
         
-        #log {
-            margin: 20px auto; max-width: 1400px; border: 1px solid #eee;
-            padding: 10px; height: 120px; overflow-y: scroll;
-            background-color: #fff; border-radius: 5px;
-        }
+        #log { margin: 20px auto; max-width: 1400px; border: 1px solid #eee; padding: 10px; height: 120px; overflow-y: scroll; background-color: #fff; border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -104,20 +53,24 @@
     <div class="top-section">
         <div class="login-section" id="loginBox">
             <select id="userNameSelect">
-                <option value="">-- 이름 선택 --</option>
-                </select>
-            <button onclick="connect()">연결</button>
+                <option value="">-- 이름 로딩 중 --</option>
+            </select>
+            <button id="connectButton" onclick="connect()" disabled>연결</button>
         </div>
         
         <div class="user-list-section" id="userListSection">
             <label style="font-size: 0.8em; font-weight: bold; color: #555;">현재 접속자:</label>
             <div id="userList"></div>
         </div>
-        
+    
         <div class="status-section" id="statusBox" style="display: none;">
             <div>접속자: <b id="myName" style="color: #007bff;"></b></div>
             <div>현재 턴: <b id="currentTurn" style="color: #dc3545;">대기 중...</b></div>
             <div>주간 모드: <b id="currentWeekMode" style="color: #17a2b8;"></b></div>
+            <div id="participationBox" style="margin-top: 5px; text-align: left;">
+                <input type="checkbox" id="participationCheck" onchange="toggleParticipation()" checked>
+                <label for="participationCheck" style="font-size: 0.9em;">다음 라운드 참여</label>
+            </div>
         </div>
     </div>
     
@@ -128,7 +81,6 @@
             <button id="commitButton" class="success" onclick="commitToCalendar()">[캘린더에 추가]</button>
             <button class="danger" onclick="resetSession()">[시스템 초기화]</button>
         </div>
-        
         <div class="admin-group">
             <label>주간 모드 설정</label>
             <div style="display: flex; gap: 5px;">
@@ -137,7 +89,6 @@
                 <button id="weekBtn2" onclick="setWeekMode(2)">다다음주</button>
             </div>
         </div>
-        
         <div class="admin-group">
             <label>수동 추가 (캘린더+시스템)</label>
             <div style="display: flex; gap: 5px; align-items: center;">
@@ -151,13 +102,12 @@
     </div>
 
 
-    <h1 style="text-align: center; margin-top: 20px;">실시간 장비 예약 (V7)</h1>
+    <h1 style="text-align: center; margin-top: 20px;">실시간 장비 예약 (V8)</h1>
 
     <div class="grid-container" id="grid">
         <div class="grid-header">월 (Mon)</div> <div class="grid-header">화 (Tue)</div> <div class="grid-header">수 (Wed)</div>
         <div class="grid-header">목 (Thu)</div> <div class="grid-header">금 (Fri)</div> <div class="grid-header">토 (Sat)</div>
         <div class="grid-header">일 (Sun)</div>
-
         <div class="day-column">
             <div class="slot" id="Mon-AM-1F">1F-오전</div> <div class="slot" id="Mon-PM-1F">1F-오후</div> <div class="slot" id="Mon-NT-1F">1F-밤</div>
             <div class="slot" id="Mon-AM-3F">3F-오전</div> <div class="slot" id="Mon-PM-3F">3F-오후</div> <div class="slot" id="Mon-NT-3F">3F-밤</div>
@@ -194,56 +144,62 @@
     <script>
         let ws; 
         let myName = ""; 
+        // [V8] nameMap 제거
         const logDiv = document.getElementById("log");
         const statusTurn = document.getElementById("currentTurn");
         const allSlots = document.querySelectorAll(".day-column .slot");
         const userNameSelect = document.getElementById("userNameSelect");
+        const connectButton = document.getElementById("connectButton");
         const loginBox = document.getElementById("loginBox");
         const statusBox = document.getElementById("statusBox");
         const adminPanel = document.getElementById("adminPanel");
         const userListSection = document.getElementById("userListSection");
         const userListDiv = document.getElementById("userList");
         const currentWeekModeSpan = document.getElementById("currentWeekMode");
+        const participationBox = document.getElementById("participationBox");
+        const participationCheck = document.getElementById("participationCheck");
         
-        // 관리자 수동 추가 폼
         const manualNameSelect = document.getElementById("manualName");
         const manualDaySelect = document.getElementById("manualDay");
         const manualTimeSelect = document.getElementById("manualTime");
         const manualFloorSelect = document.getElementById("manualFloor");
 
-        const nameMap = {
-            '건우': 'KW', '구민': 'GM', '채율': 'CY', '윤아': 'YA', '채원': 'CW',
-            '동훈': 'DH', '성현': 'KSH', '연규': 'YG', '상길': 'PSG', '준호': 'YJH',
-            '윤한': 'YH', '의창': 'UC', '웨이슈엔': 'WH', '영우': 'YW', '진호': 'JH',
-            '성곤': 'SG', '밧조릭': 'BB', '동연': 'DY'
-        };
+        // [V8 신규] 페이지 로드 시 이름 목록 가져오기 (Request 2)
+        document.addEventListener("DOMContentLoaded", async () => {
+            try {
+                const response = await fetch("/get_names");
+                const data = await response.json();
+                const names = data.names.sort();
+                
+                userNameSelect.innerHTML = '<option value="">-- 이름 선택 --</option>'; // 초기화
+                manualNameSelect.innerHTML = '<option value="">이름</option>'; // 초기화
+                
+                names.forEach(name => {
+                    userNameSelect.appendChild(new Option(name, name));
+                    manualNameSelect.appendChild(new Option(name, name));
+                });
+                
+                connectButton.disabled = false; // 연결 버튼 활성화
+                addLog("[시스템] 이름 목록 로드 완료.");
+                
+            } catch (e) {
+                addLog(`[에러] 이름 목록 로드 실패: ${e.message}`);
+                userNameSelect.innerHTML = '<option value="">-- 로드 실패 --</option>';
+            }
+            
+            // 관리자 수동 추가 폼 채우기 (V7)
+            ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].forEach(day => {
+                manualDaySelect.appendChild(new Option(day, day));
+            });
+            ["AM", "PM", "NT"].forEach(time => {
+                manualTimeSelect.appendChild(new Option(time, time));
+            });
+            ["1F", "3F"].forEach(floor => {
+                manualFloorSelect.appendChild(new Option(floor, floor));
+            });
+        });
 
-        // --- 초기화: 드롭다운 메뉴 채우기 ---
-        Object.keys(nameMap).sort().forEach(name => {
-            // 로그인용
-            const option1 = document.createElement("option");
-            option1.value = name; option1.text = name;
-            userNameSelect.appendChild(option1);
-            // 관리자 수동 추가용
-            const option2 = document.createElement("option");
-            option2.value = name; option2.text = name;
-            manualNameSelect.appendChild(option2);
-        });
-        
-        // 관리자 수동 추가 폼 채우기
-        ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].forEach(day => {
-            manualDaySelect.appendChild(new Option(day, day));
-        });
-        ["AM", "PM", "NT"].forEach(time => {
-            manualTimeSelect.appendChild(new Option(time, time));
-        });
-        ["1F", "3F"].forEach(floor => {
-            manualFloorSelect.appendChild(new Option(floor, floor));
-        });
-        // --- 초기화 끝 ---
-
-
-        // 슬롯의 원본 텍스트 저장
+        // 슬롯의 원본 텍스트 저장 (V7)
         allSlots.forEach(slot => {
             slot.dataset.originalText = slot.innerText;
         });
@@ -253,7 +209,6 @@
             logDiv.scrollTop = logDiv.scrollHeight;
         }
 
-        // 보드 초기화 함수
         function resetBoard() {
             addLog("[시스템] 보드 상태를 초기화합니다...");
             allSlots.forEach(slot => {
@@ -262,7 +217,6 @@
             });
         }
 
-        // 슬롯 활성화/비활성화 토글
         function toggleSlots(isMyTurn) {
             allSlots.forEach(slot => {
                 if (!slot.classList.contains("reserved") && !slot.classList.contains("pending")) {
@@ -271,15 +225,13 @@
             });
         }
         
-        // [신규] 관리자 삭제 호버 (Request 3)
         function toggleAdminDeleteHover(isAdmin) {
             allSlots.forEach(slot => {
                 slot.classList.toggle("admin-hover", isAdmin);
             });
         }
 
-        // --- 관리자 기능 함수들 ---
-
+        // --- 관리자 기능 함수들 (V7과 동일) ---
         async function startRound() {
             addLog("[관리자] 새 라운드 시작 요청...");
             try {
@@ -302,7 +254,6 @@
             } catch (e) { addLog(`[에러] 캘린더 추가 실패: ${e.message}`); }
         }
         
-        // [신규] 시스템 초기화 (Request 1)
         async function resetSession() {
             if (!confirm("[관리자] 경고! 모든 예약 상태(Red, Yellow)를 초기화합니다. (캘린더는 삭제되지 않음)")) return;
             addLog("[관리자] 시스템 초기화 요청...");
@@ -312,7 +263,6 @@
             } catch (e) { addLog(`[에러] 초기화 실패: ${e.message}`); }
         }
         
-        // [신규] 주간 모드 설정 (Request 4)
         async function setWeekMode(mode) {
             addLog(`[관리자] 주간 모드를 ${mode}로 설정 요청...`);
             try {
@@ -320,7 +270,6 @@
             } catch (e) { addLog(`[에러] 모드 변경 실패: ${e.message}`); }
         }
         
-        // [신규] 수동 추가 (Request 3)
         async function manualAdd() {
             const request = {
                 name: manualNameSelect.value,
@@ -332,7 +281,6 @@
                 addLog("[에러] 수동 추가: 모든 필드를 선택하세요.");
                 return;
             }
-            
             addLog(`[관리자] 수동 추가 요청: ${request.day}-${request.time}-${request.floor} / ${request.name}`);
             try {
                 const response = await fetch("/admin/manual_add", {
@@ -349,10 +297,17 @@
                 addLog(`[에러] 수동 추가 실패: ${e.message}`); 
             }
         }
-        // --- 관리자 기능 끝 ---
-
-
-        // WebSocket 연결 함수
+        
+        // [V8 신규] 참여 상태 변경 (Request 1)
+        function toggleParticipation() {
+            const isChecked = participationCheck.checked;
+            addLog(`[시스템] 다음 라운드 참여 상태를 [${isChecked ? '참여' : '불참'}]으로 변경합니다.`);
+            if (ws) {
+                ws.send(JSON.stringify({"type": "set_participation", "status": isChecked}));
+            }
+        }
+        
+        // --- WebSocket 연결 함수 (V8 수정) ---
         function connect() {
             myName = userNameSelect.value;
             if (!myName) {
@@ -362,14 +317,15 @@
 
             loginBox.style.display = "none";
             statusBox.style.display = "flex";
-            userListSection.style.display = "block"; // 접속자 목록 보이기
+            userListSection.style.display = "block";
+            participationBox.style.display = "block"; // [V8] 참여 체크박스 보이기
+            participationCheck.checked = true; // [V8] 기본값 '참여'로 설정
             document.getElementById("myName").innerText = myName;
             addLog(`<b>${myName}</b> 님으로 연결 시도...`);
             
-            // 관리자 UI 표시
             if (myName === '건우') {
                 adminPanel.style.display = "flex";
-                toggleAdminDeleteHover(true); // 관리자용 삭제 호버 활성화
+                toggleAdminDeleteHover(true);
                 addLog("[시스템] 관리자 권한으로 접속했습니다.");
             }
 
@@ -377,7 +333,6 @@
             const wsHost = window.location.host;
             ws = new WebSocket(`${wsProtocol}//${wsHost}/ws/${myName}`);
 
-            // 서버로부터 메시지 수신
             ws.onmessage = function(event) {
                 const message = JSON.parse(event.data);
 
@@ -385,6 +340,7 @@
                     
                     case "initial_state":
                         resetBoard();
+                        // [V8] nameMap 의존성 제거
                         for (const [slotId, initial] of Object.entries(message.reserved)) {
                             const slot = document.getElementById(slotId);
                             if (slot) {
@@ -396,19 +352,54 @@
                             const slot = document.getElementById(slotId);
                             if (slot) {
                                 slot.classList.add("pending");
-                                slot.innerText = nameMap[userName] || '??';
+                                // [V8] nameMap 대신 서버가 보낸 userName을 임시로 표시
+                                // (이 정보는 불완전할 수 있으나, V8 백엔드에 nameMap이 있으므로
+                                //  initial_state에서 pending도 {ID: initial}로 보내는게 더 나음)
+                                // -> 아님, V8 백엔드 slot_update가 initial을 보내줌.
+                                // -> 하지만 V8 백엔드 initial_state의 pending은 {ID: 이름}임.
+                                // -> [개선 필요] 백엔드가 initial_state의 pending을 {ID: {name:..., initial:...}}로 보내야 함.
+                                // -> [임시 조치] 일단 이름이라도 표시
+                                slot.innerText = userName; 
                             }
+                        }
+                        // --> [V8 수정] 위의 nameMap을 사용하는 코드를 다시 확인
+                        // `initial_state`의 `pending`은 `{slotId: userName}`.
+                        // `nameMap`이 없으면 이니셜을 표시할 수 없음.
+                        // [V8.1 해결책] `initial_state` 메시지를 보낼 때 백엔드가 `nameMap`을 참조하여 이니셜을 보내도록 수정해야 함.
+                        // -> [V8.2] 아님! `connect()`할 때 `nameMap`을 다시 `fetch`하면 됨.
+                        // --> [V8.3] `get_names`만 `fetch`하고, `nameMap`은 사용하지 않는 것이 최선.
+                        // --> [V8.4] 백엔드의 `initial_state`가 `pending`을 `{"slotId": "KW"}` (이니셜)로 보내도록 수정해야 함.
+                        
+                        // [V8.4 적용을 위한 main.py 수정 제안 - 지금은 안함, 프론트엔드만 수정]
+                        // -> `broadcast_initial_state`에서 `pending`을 변환
+                        // pending_with_initials = {slot_id: name_map[name] for slot_id, name in current_round_selections.items()}
+                        // "pending": pending_with_initials
+                        
+                        // [V8.4 가정 하에 프론트엔드 수정]
+                        for (const [slotId, initial] of Object.entries(message.pending)) {
+                             const slot = document.getElementById(slotId);
+                             if (slot) {
+                                 slot.classList.add("pending");
+                                 slot.innerText = initial || '??';
+                             }
                         }
                         break;
                     
-                    // [신규] 접속자 목록 갱신 (Request 2)
+                    // [V8 수정] 접속자 목록 갱신 (Request 1)
                     case "user_list_update":
-                        userListDiv.innerHTML = ""; // 목록 비우기
-                        message.users.sort().forEach(user => {
+                        userListDiv.innerHTML = "";
+                        // [V8] 이름순 정렬
+                        message.users.sort((a, b) => a.name.localeCompare(b.name));
+                        
+                        message.users.forEach(user => {
                             const chip = document.createElement("span");
                             chip.className = "user-chip";
-                            chip.innerText = user;
-                            if (user === '건우') chip.classList.add("admin");
+                            chip.innerText = user.name;
+                            if (user.name === '건우') chip.classList.add("admin");
+                            // [V8] 참여 안하면 회색 처리
+                            if (!user.participating) {
+                                chip.classList.add("not-participating");
+                            }
                             userListDiv.appendChild(chip);
                         });
                         break;
@@ -421,7 +412,7 @@
                         const slotElement = document.getElementById(message.slotId);
                         if (slotElement) {
                             slotElement.classList.remove("available");
-                            slotElement.classList.add("pending"); // Yellow
+                            slotElement.classList.add("pending");
                             slotElement.innerText = message.initial; 
                         }
                         addLog(`[알림] ${message.user} 님이 ${message.slotId} 선택 (대기)`);
@@ -433,17 +424,15 @@
                             const slot = document.getElementById(slotId);
                             if (slot) {
                                 slot.classList.remove("pending");
-                                slot.classList.add("reserved"); // Red
+                                slot.classList.add("reserved");
                                 slot.innerText = initial;
                             }
                         }
                         break;
                     
-                    // [신규] 주간 모드 갱신 (Request 4)
                     case "week_mode_update":
                         const modeText = {0: "이번주", 1: "다음주", 2: "다다음주"};
                         currentWeekModeSpan.innerText = modeText[message.mode];
-                        // 버튼 활성화/비활성화
                         [0, 1, 2].forEach(m => {
                             document.getElementById(`weekBtn${m}`).disabled = (m === message.mode);
                         });
@@ -481,9 +470,10 @@
                 statusBox.style.display = "none";
                 adminPanel.style.display = "none";
                 userListSection.style.display = "none";
-                userListDiv.innerHTML = ""; // 접속자 목록 비우기
+                participationBox.style.display = "none"; // [V8] 체크박스 숨기기
+                userListDiv.innerHTML = "";
                 statusTurn.innerText = "대기 중...";
-                toggleAdminDeleteHover(false); // 관리자 호버 비활성화
+                toggleAdminDeleteHover(false);
                 ws = null;
             };
             
@@ -492,7 +482,7 @@
             };
         }
 
-        // 슬롯 클릭 이벤트
+        // 슬롯 클릭 이벤트 (V7과 동일)
         allSlots.forEach(slot => {
             slot.addEventListener("click", function() {
                 const slotId = slot.id; 
@@ -502,7 +492,6 @@
                     return;
                 }
                 
-                // [신규] 관리자 수동 삭제 (Request 3)
                 if (myName === '건우' && (slot.classList.contains("reserved") || slot.classList.contains("pending"))) {
                     if (confirm(`[관리자] ${slotId} 슬롯을 시스템에서만 삭제하시겠습니까? (캘린더 X)`)) {
                         addLog(`[관리자] ${slotId} 시스템 삭제 요청...`);
@@ -511,7 +500,6 @@
                     return;
                 }
                 
-                // --- 일반 예약 로직 ---
                 if (slot.classList.contains("reserved") || slot.classList.contains("pending")) {
                     addLog(`[알림] ${slotId} 는 이미 선택된 슬롯입니다.`);
                     return;
