@@ -7,125 +7,49 @@
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 10px; background-color: #f9f9f9; }
         
-        .grid-container { 
-            display: grid; 
-            /* [V10] 모바일에서는 1열, 700px 이상에서 7열 */
-            grid-template-columns: 1fr; 
-            gap: 8px; 
-            max-width: 1400px; 
-            margin: 20px auto; 
+        /* [추가] 내 턴일 때 화면 깜빡임 효과 */
+        @keyframes flashGreen {
+            0% { background-color: rgba(40, 167, 69, 0.4); }
+            50% { background-color: rgba(40, 167, 69, 0.1); }
+            100% { background-color: #f9f9f9; }
         }
-        @media (min-width: 700px) {
-            .grid-container {
-                grid-template-columns: repeat(7, 1fr);
-            }
+        .my-turn-flash {
+            animation: flashGreen 0.6s ease-out;
         }
 
+        .grid-container { display: grid; grid-template-columns: 1fr; gap: 8px; max-width: 1400px; margin: 20px auto; }
+        @media (min-width: 700px) { .grid-container { grid-template-columns: repeat(7, 1fr); } }
         .grid-header { padding: 10px; font-weight: bold; background-color: #e9ecef; color: #333; text-align: center; border-radius: 5px; }
-        .day-column { 
-            display: flex; 
-            flex-direction: column; 
-            background-color: #fff; 
-            border: 1px solid #dee2e6; 
-            border-radius: 5px; 
-            padding: 5px; 
-        }
-
-        /* [V10] 병렬 레이아웃용 스타일 */
-        .floor-header-container {
-            display: flex;
-            justify-content: space-around;
-            padding: 5px 0;
-            border-bottom: 1px solid #eee;
-            margin-bottom: 5px;
-        }
-        .floor-header {
-            font-weight: bold;
-            color: #555;
-            font-size: 0.95em;
-            flex-basis: 50%;
-            text-align: center;
-        }
-        .parallel-container {
-            display: flex;
-            justify-content: space-between;
-            gap: 4px;
-        }
-        .floor-column {
-            display: flex;
-            flex-direction: column;
-            flex-basis: 50%;
-            gap: 4px;
-        }
-        /* [V10] 끝 */
-
-        .slot {
-            padding: 12px 8px; border: 1px solid #ccc; border-radius: 5px;
-            text-align: center; cursor: pointer; background-color: #f8f9fa;
-            color: #aaa; font-size: 0.9em;
-            /* [V10] margin: 4px; -> gap으로 대체 */
-            transition: background-color 0.2s, color 0.2s, border-color 0.2s;
-        }
-        
+        .day-column { display: flex; flex-direction: column; background-color: #fff; border: 1px solid #dee2e6; border-radius: 5px; padding: 5px; }
+        .floor-header-container { display: flex; justify-content: space-around; padding: 5px 0; border-bottom: 1px solid #eee; margin-bottom: 5px; }
+        .floor-header { font-weight: bold; color: #555; font-size: 0.95em; flex-basis: 50%; text-align: center; }
+        .parallel-container { display: flex; justify-content: space-between; gap: 4px; }
+        .floor-column { display: flex; flex-direction: column; flex-basis: 50%; gap: 4px; }
+        .slot { padding: 12px 8px; border: 1px solid #ccc; border-radius: 5px; text-align: center; cursor: pointer; background-color: #f8f9fa; color: #aaa; font-size: 0.9em; transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
         .slot.available { background-color: #d4edda; color: #155724; font-weight: bold; border-color: #c3e6cb; }
         .slot.available:hover { background-color: #c3e6cb; }
         .slot.pending { background-color: #fff3cd; color: #856404; border-color: #ffeeba; font-weight: bold; cursor: not-allowed; text-decoration: line-through; }
         .slot.reserved { background-color: #f8d7da; color: #721c24; border-color: #f5c6cb; font-weight: bold; cursor: not-allowed; text-decoration: line-through; }
-        .slot.pending.admin-hover:hover, .slot.reserved.admin-hover:hover {
-            background-color: #000;
-            color: white;
-            cursor: crosshair;
-        }
-
-        .top-section {
-            display: flex; 
-            /* [V10] 모바일 대응 */
-            flex-direction: column;
-            justify-content: space-between; 
-            /* align-items: stretch; */
-            max-width: 1400px; margin: 0 auto; padding: 10px;
-            background-color: #fff; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            gap: 10px;
-        }
-        /* [V10] 1000px 이상에서 가로 배치 */
-        @media (min-width: 1000px) {
-            .top-section {
-                flex-direction: row;
-                align-items: stretch;
-            }
-        }
-
+        .slot.pending.admin-hover:hover, .slot.reserved.admin-hover:hover { background-color: #000; color: white; cursor: crosshair; }
+        .top-section { display: flex; flex-direction: column; justify-content: space-between; max-width: 1400px; margin: 0 auto; padding: 10px; background-color: #fff; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); gap: 10px; }
+        @media (min-width: 1000px) { .top-section { flex-direction: row; align-items: stretch; } }
         .login-section { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
         .status-section { text-align: right; flex-shrink: 0; }
-        
-        .admin-panel {
-            display: none; flex-wrap: wrap; gap: 10px;
-            align-items: center; 
-            /* [V10] 모바일 대응 */
-            border-top: 2px solid #007bff; padding-top: 10px;
-            /* border-left: 2px solid #007bff; padding-left: 10px; */
-        }
+        .admin-panel { display: none; flex-wrap: wrap; gap: 10px; align-items: center; border-top: 2px solid #007bff; padding-top: 10px; }
         .admin-group { display: flex; flex-direction: column; gap: 5px; }
         .admin-group label { font-size: 0.8em; font-weight: bold; color: #555; }
         .admin-group button, .admin-group select { padding: 5px; }
-        
-        .user-list-section {
-            display: none; flex-grow: 1; padding: 5px;
-            /* [V10] 모바일 대응 */
-            border-top: 2px solid #ccc; margin-top: 10px;
-            /* border-left: 2px solid #ccc; margin-left: 10px; */
-        }
+        .user-list-section { display: none; flex-grow: 1; padding: 5px; border-top: 2px solid #ccc; margin-top: 10px; }
+        .turn-order-section { display: none; flex-direction: column; gap: 8px; max-width: 1400px; margin: 15px auto 0; padding: 10px; background-color: #fff; border: 1px solid #dee2e6; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.04); }
+        .turn-order-title { font-weight: bold; color: #495057; font-size: 0.95em; }
+        .turn-order-list { display: flex; flex-wrap: wrap; gap: 8px; }
+        .turn-chip { padding: 4px 10px; border-radius: 12px; border: 1px solid #dee2e6; background-color: #f1f3f5; color: #495057; font-size: 0.9em; }
+        .turn-chip.current { background-color: #fff3cd; border-color: #ffeeba; color: #856404; font-weight: bold; }
+        .turn-chip.completed { background-color: #d4edda; border-color: #c3e6cb; color: #155724; }
         #userList { display: flex; flex-wrap: wrap; gap: 8px; }
         .user-chip { background-color: #e9ecef; color: #333; padding: 3px 8px; border-radius: 10px; font-size: 0.9em; }
         .user-chip.admin { background-color: #007bff; color: white; font-weight: bold; }
-        
-        .user-chip.not-participating {
-            background-color: #f8f9fa;
-            color: #aaa;
-            text-decoration: line-through;
-            border: 1px dashed #ccc;
-        }
-
+        .user-chip.not-participating { background-color: #f8f9fa; color: #aaa; text-decoration: line-through; border: 1px dashed #ccc; }
         #userNameSelect { padding: 5px; border: 1px solid #ccc; border-radius: 3px; }
         button { padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer; background-color: #007bff; color: white; }
         button:hover { background-color: #0056b3; }
@@ -133,80 +57,44 @@
         button.danger:hover { background-color: #c82333; }
         button.success { background-color: #28a745; }
         button.success:hover { background-color: #218838; }
-        
-        /* [V10] 채팅 UI */
-        .chat-box {
-            max-width: 1400px;
-            margin: 10px auto;
-            display: none; /* 접속 후에 보이도록 */
-            flex-direction: column;
-        }
-        .chat-box-input-group {
-            display: flex;
-            gap: 5px;
-        }
-        #chatInput {
-            flex-grow: 1;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 3px;
-        }
-        #sendChatButton {
-            padding: 8px 15px;
-        }
-
-        #log {
-            margin: 0 auto; /* [V10] chat-box가 margin 관리 */
-            max-width: 1400px; border: 1px solid #eee;
-            padding: 10px; height: 120px; overflow-y: scroll;
-            background-color: #fff; border-radius: 5px;
-            margin-top: 10px; /* [V10] chat-box와 간격 */
-        }
-        /* [V10] 로그 내 채팅 메시지 스타일 */
-        .chat-message-log {
-            color: #333;
-            background-color: #f1f1f1;
-            padding: 2px 5px;
-            border-radius: 3px;
-            margin: 2px 0;
-        }
+        button.warning { background-color: #ffc107; color: #333; }
+        button.warning:hover { background-color: #e0a800; color: #212529; }
+        .chat-box { max-width: 1400px; margin: 10px auto; display: none; flex-direction: column; }
+        .chat-box-input-group { display: flex; gap: 5px; }
+        #chatInput { flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 3px; }
+        #sendChatButton { padding: 8px 15px; }
+        #log { margin: 10px auto; max-width: 1400px; border: 1px solid #eee; padding: 10px; height: 120px; overflow-y: scroll; background-color: #fff; border-radius: 5px; }
+        .chat-message-log { color: #333; background-color: #f1f1f1; padding: 2px 5px; border-radius: 3px; margin: 2px 0; }
     </style>
 </head>
 <body>
-
     <div class="top-section">
         <div class="login-section" id="loginBox">
-            <select id="userNameSelect">
-                <option value="">-- 이름 로딩 중 --</option>
-            </select>
+            <select id="userNameSelect"><option value="">-- 이름 로딩 중 --</option></select>
             <button id="connectButton" onclick="connect()" disabled>연결</button>
         </div>
-        
         <div class="user-list-section" id="userListSection">
             <label style="font-size: 0.8em; font-weight: bold; color: #555;">현재 접속자:</label>
             <div id="userList"></div>
         </div>
-    
         <div class="status-section" id="statusBox" style="display: none;">
             <div>접속자: <b id="myName" style="color: #007bff;"></b></div>
             <div>현재 턴: <b id="currentTurn" style="color: #dc3545;">대기 중...</b></div>
             <div>주간 모드: <b id="currentWeekMode" style="color: #17a2b8;"></b></div>
-            
             <button id="passTurnButton" onclick="passTurn()" style="display: none; margin-top: 5px;" class="danger">턴 넘기기</button>
-            
             <div id="participationBox" style="margin-top: 5px; text-align: left; display: none;">
                 <input type="checkbox" id="participationCheck" onchange="toggleParticipation()" checked>
                 <label for="participationCheck" style="font-size: 0.9em;">다음 라운드 참여</label>
             </div>
         </div>
     </div>
-    
+
     <div class="top-section admin-panel" id="adminPanel">
-        <!-- (기존 관리자 패널과 동일, 변경 없음) -->
         <div class="admin-group">
             <label>시스템</label>
             <button onclick="startRound()">[라운드 시작]</button>
             <button id="commitButton" class="success" onclick="commitToCalendar()">[캘린더에 추가]</button>
+            <button class="warning" onclick="skipCurrentTurn()">[현재 턴 스킵]</button>
             <button class="danger" onclick="resetSession()">[시스템 초기화]</button>
         </div>
         <div class="admin-group">
@@ -229,102 +117,39 @@
         </div>
     </div>
 
+    <div class="turn-order-section" id="turnOrderSection" style="display: none;">
+        <div class="turn-order-title">이번 라운드 순서</div>
+        <div class="turn-order-list" id="turnOrderList"></div>
+    </div>
 
     <h1 style="text-align: center; margin-top: 20px;">실시간 장비 예약 (V10)</h1>
-
-    <!-- [V10] 그리드 레이아웃 수정 -->
+    
     <div class="grid-container" id="grid">
         <div class="grid-header">월 (Mon)</div> <div class="grid-header">화 (Tue)</div> <div class="grid-header">수 (Wed)</div>
         <div class="grid-header">목 (Thu)</div> <div class="grid-header">금 (Fri)</div> <div class="grid-header">토 (Sat)</div>
         <div class="grid-header">일 (Sun)</div>
         
-        <!-- Mon -->
-        <div class="day-column">
-            <div class="floor-header-container"><div class="floor-header">1F</div><div class="floor-header">3F</div></div>
-            <div class="parallel-container">
-                <div class="floor-column">
-                    <div class="slot" id="Mon-AM-1F">오전</div> <div class="slot" id="Mon-PM-1F">오후</div> <div class="slot" id="Mon-NT-1F">밤</div>
-                </div>
-                <div class="floor-column">
-                    <div class="slot" id="Mon-AM-3F">오전</div> <div class="slot" id="Mon-PM-3F">오후</div> <div class="slot" id="Mon-NT-3F">밤</div>
-                </div>
-            </div>
-        </div>
-        <!-- Tue -->
-        <div class="day-column">
-            <div class="floor-header-container"><div class="floor-header">1F</div><div class="floor-header">3F</div></div>
-            <div class="parallel-container">
-                <div class="floor-column">
-                    <div class="slot" id="Tue-AM-1F">오전</div> <div class="slot" id="Tue-PM-1F">오후</div> <div class="slot" id="Tue-NT-1F">밤</div>
-                </div>
-                <div class="floor-column">
-                    <div class="slot" id="Tue-AM-3F">오전</div> <div class="slot" id="Tue-PM-3F">오후</div> <div class="slot" id="Tue-NT-3F">밤</div>
-                </div>
-            </div>
-        </div>
-        <!-- Wed -->
-        <div class="day-column">
-            <div class="floor-header-container"><div class="floor-header">1F</div><div class="floor-header">3F</div></div>
-            <div class="parallel-container">
-                <div class="floor-column">
-                    <div class="slot" id="Wed-AM-1F">오전</div> <div class="slot" id="Wed-PM-1F">오후</div> <div class="slot" id="Wed-NT-1F">밤</div>
-                </div>
-                <div class="floor-column">
-                    <div class="slot" id="Wed-AM-3F">오전</div> <div class="slot" id="Wed-PM-3F">오후</div> <div class="slot" id="Wed-NT-3F">밤</div>
-                </div>
-            </div>
-        </div>
-        <!-- Thu -->
-        <div class="day-column">
-            <div class="floor-header-container"><div class="floor-header">1F</div><div class="floor-header">3F</div></div>
-            <div class="parallel-container">
-                <div class="floor-column">
-                    <div class="slot" id="Thu-AM-1F">오전</div> <div class="slot" id="Thu-PM-1F">오후</div> <div class="slot" id="Thu-NT-1F">밤</div>
-                </div>
-                <div class="floor-column">
-                    <div class="slot" id="Thu-AM-3F">오전</div> <div class="slot" id="Thu-PM-3F">오후</div> <div class="slot" id="Thu-NT-3F">밤</div>
-                </div>
-            </div>
-        </div>
-        <!-- Fri -->
-        <div class="day-column">
-            <div class="floor-header-container"><div class="floor-header">1F</div><div class="floor-header">3F</div></div>
-            <div class="parallel-container">
-                <div class="floor-column">
-                    <div class="slot" id="Fri-AM-1F">오전</div> <div class="slot" id="Fri-PM-1F">오후</div> <div class="slot" id="Fri-NT-1F">밤</div>
-                </div>
-                <div class="floor-column">
-                    <div class="slot" id="Fri-AM-3F">오전</div> <div class="slot" id="Fri-PM-3F">오후</div> <div class="slot" id="Fri-NT-3F">밤</div>
-                </div>
-            </div>
-        </div>
-        <!-- Sat -->
-        <div class="day-column">
-            <div class="floor-header-container"><div class="floor-header">1F</div><div class="floor-header">3F</div></div>
-            <div class="parallel-container">
-                <div class="floor-column">
-                    <div class="slot" id="Sat-AM-1F">오전</div> <div class="slot" id="Sat-PM-1F">오후</div> <div class="slot" id="Sat-NT-1F">밤</div>
-                </div>
-                <div class="floor-column">
-                    <div class="slot" id="Sat-AM-3F">오전</div> <div class="slot" id="Sat-PM-3F">오후</div> <div class="slot" id="Sat-NT-3F">밤</div>
-                </div>
-            </div>
-        </div>
-        <!-- Sun -->
-        <div class="day-column">
-            <div class="floor-header-container"><div class="floor-header">1F</div><div class="floor-header">3F</div></div>
-            <div class="parallel-container">
-                <div class="floor-column">
-                    <div class="slot" id="Sun-AM-1F">오전</div> <div class="slot" id="Sun-PM-1F">오후</div> <div class="slot" id="Sun-NT-1F">밤</div>
-                </div>
-                <div class="floor-column">
-                    <div class="slot" id="Sun-AM-3F">오전</div> <div class="slot" id="Sun-PM-3F">오후</div> <div class="slot" id="Sun-NT-3F">밤</div>
-                </div>
-            </div>
-        </div>
+        <script>
+            const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+            const grid = document.getElementById("grid");
+            days.forEach(day => {
+                const col = document.createElement("div");
+                col.className = "day-column";
+                col.innerHTML = `
+                    <div class="floor-header-container"><div class="floor-header">1F</div><div class="floor-header">3F</div></div>
+                    <div class="parallel-container">
+                        <div class="floor-column">
+                            <div class="slot" id="${day}-AM-1F">오전</div> <div class="slot" id="${day}-PM-1F">오후</div> <div class="slot" id="${day}-NT-1F">밤</div>
+                        </div>
+                        <div class="floor-column">
+                            <div class="slot" id="${day}-AM-3F">오전</div> <div class="slot" id="${day}-PM-3F">오후</div> <div class="slot" id="${day}-NT-3F">밤</div>
+                        </div>
+                    </div>`;
+                grid.appendChild(col);
+            });
+        </script>
     </div>
-    
-    <!-- [V10] 채팅 UI 추가 -->
+
     <div class="chat-box" id="chatBox">
         <h3>실시간 로그 & 채팅</h3>
         <div class="chat-box-input-group">
@@ -332,8 +157,7 @@
             <button id="sendChatButton" onclick="sendChat()">전송</button>
         </div>
     </div>
-    <div id="log"></div> <!-- 로그창은 채팅 UI 아래로 -->
-
+    <div id="log"></div>
     <p style="text-align: center; font-size: 0.8em; color: #aaa; margin-top: 20px;">Made by Kunwoo Park</p>
 
     <script>
@@ -341,7 +165,6 @@
         let myName = ""; 
         const logDiv = document.getElementById("log");
         const statusTurn = document.getElementById("currentTurn");
-        const allSlots = document.querySelectorAll(".day-column .slot");
         const userNameSelect = document.getElementById("userNameSelect");
         const connectButton = document.getElementById("connectButton");
         const loginBox = document.getElementById("loginBox");
@@ -353,71 +176,89 @@
         const participationBox = document.getElementById("participationBox");
         const participationCheck = document.getElementById("participationCheck");
         const passTurnButton = document.getElementById("passTurnButton");
-        
-        // [V10] 채팅 UI 요소
+        const turnOrderSection = document.getElementById("turnOrderSection");
+        const turnOrderList = document.getElementById("turnOrderList");
         const chatBox = document.getElementById("chatBox");
         const chatInput = document.getElementById("chatInput");
-        
         const manualNameSelect = document.getElementById("manualName");
         const manualDaySelect = document.getElementById("manualDay");
         const manualTimeSelect = document.getElementById("manualTime");
         const manualFloorSelect = document.getElementById("manualFloor");
+        
+        let currentRoundOrder = [];
+        let currentTurnPosition = 0;
+        let allSlots = [];
 
         document.addEventListener("DOMContentLoaded", async () => {
+            allSlots = document.querySelectorAll(".day-column .slot");
+            allSlots.forEach(slot => { slot.dataset.originalText = slot.innerText; });
+
             try {
-                // ... (이름 로드 로직 동일) ...
                 const response = await fetch("/get_names"); 
                 const data = await response.json();
                 const names = data.names.sort();
-                
                 userNameSelect.innerHTML = '<option value="">-- 이름 선택 --</option>';
                 manualNameSelect.innerHTML = '<option value="">이름</option>';
-                
                 names.forEach(name => {
                     userNameSelect.appendChild(new Option(name, name));
                     manualNameSelect.appendChild(new Option(name, name));
                 });
-                
                 connectButton.disabled = false;
                 addLog("[시스템] 이름 목록 로드 완료.");
-                
             } catch (e) {
                 addLog(`[에러] 이름 목록 로드 실패: ${e.message}`);
                 userNameSelect.innerHTML = '<option value="">-- 로드 실패 --</option>';
             }
-            
-            // ... (수동 추가 폼 채우기 동일) ...
-            ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].forEach(day => {
-                manualDaySelect.appendChild(new Option(day, day));
-            });
-            ["AM", "PM", "NT"].forEach(time => {
-                manualTimeSelect.appendChild(new Option(time, time));
-            });
-            ["1F", "3F"].forEach(floor => {
-                manualFloorSelect.appendChild(new Option(floor, floor));
-            });
 
-            // [V10] 채팅 입력창 Enter 키 이벤트
+            ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].forEach(day => manualDaySelect.appendChild(new Option(day, day)));
+            ["AM", "PM", "NT"].forEach(time => manualTimeSelect.appendChild(new Option(time, time)));
+            ["1F", "3F"].forEach(floor => manualFloorSelect.appendChild(new Option(floor, floor)));
+
             chatInput.addEventListener("keypress", function(event) {
-                if (event.key === "Enter") {
-                    event.preventDefault(); // 폼 전송 방지
-                    sendChat();
-                }
+                if (event.key === "Enter") { event.preventDefault(); sendChat(); }
             });
-        });
 
-        // [V10] 슬롯의 원본 텍스트 저장 (이제 "오전", "오후", "밤")
-        allSlots.forEach(slot => {
-            slot.dataset.originalText = slot.innerText;
+            // 슬롯 클릭 이벤트 일괄 등록
+            allSlots.forEach(slot => {
+                slot.addEventListener("click", function() {
+                    const slotId = slot.id; 
+                    if (!ws) { addLog("[알림] 먼저 '연결' 버튼을 눌러주세요."); return; }
+                    
+                    // 관리자 삭제 모드
+                    if (myName === '건우' && (slot.classList.contains("reserved") || slot.classList.contains("pending"))) {
+                        if (confirm(`[관리자] ${slotId} 슬롯을 시스템에서만 삭제하시겠습니까? (캘린더 X)`)) {
+                            addLog(`[관리자] ${slotId} 시스템 삭제 요청...`);
+                            ws.send(JSON.stringify({"type": "admin_delete", "slotId": slotId}));
+                        }
+                        return;
+                    }
+
+                    // 이미 예약된 슬롯 클릭
+                    if (slot.classList.contains("reserved") || slot.classList.contains("pending")) {
+                        addLog(`[알림] ${slotId} 는 이미 선택된 슬롯입니다.`);
+                        return;
+                    }
+
+                    // 내 턴이 아닐 때
+                    if (!slot.classList.contains("available")) {
+                        addLog("[알림] 내 턴이 아닙니다. (현재 턴: " + statusTurn.innerText + ")");
+                        return;
+                    }
+
+                    // [추가] 예약 확인 팝업
+                    if (confirm(`${slotId} 에 예약하시겠습니까?`)) {
+                        addLog(`[전송] ${slotId} 예약 시도...`);
+                        ws.send(slotId);
+                    } else {
+                        addLog(`[취소] 예약이 취소되었습니다.`);
+                    }
+                });
+            });
         });
 
         function addLog(message, isChat = false) {
-            // [V10] 채팅 메시지인 경우 특별 스타일 적용
-            if (isChat) {
-                logDiv.innerHTML += `<div class="chat-message-log">${message}</div>`;
-            } else {
-                logDiv.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${message}</div>`;
-            }
+            if (isChat) logDiv.innerHTML += `<div class="chat-message-log">${message}</div>`;
+            else logDiv.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${message}</div>`;
             logDiv.scrollTop = logDiv.scrollHeight;
         }
 
@@ -425,28 +266,47 @@
             addLog("[시스템] 보드 상태를 초기화합니다...");
             allSlots.forEach(slot => {
                 slot.classList.remove("available", "pending", "reserved");
-                slot.innerText = slot.dataset.originalText; // "오전", "오후" 등
+                slot.innerText = slot.dataset.originalText; 
             });
         }
 
         function toggleSlots(isMyTurn) {
-            // ... (기존 코드와 동일, 변경 없음) ...
             allSlots.forEach(slot => {
                 if (!slot.classList.contains("reserved") && !slot.classList.contains("pending")) {
                     slot.classList.toggle("available", isMyTurn);
                 }
             });
         }
-        
+
         function toggleAdminDeleteHover(isAdmin) {
-            // ... (기존 코드와 동일, 변경 없음) ...
-            allSlots.forEach(slot => {
-                slot.classList.toggle("admin-hover", isAdmin);
+            allSlots.forEach(slot => slot.classList.toggle("admin-hover", isAdmin));
+        }
+
+        function updateTurnOrderDisplay(order, index) {
+            if (Array.isArray(order)) currentRoundOrder = order.slice();
+            if (typeof index === "number" && !Number.isNaN(index)) currentTurnPosition = index;
+            renderTurnOrderDisplay();
+        }
+
+        function renderTurnOrderDisplay() {
+            if (!currentRoundOrder.length) {
+                turnOrderSection.style.display = "none"; turnOrderList.innerHTML = ""; return;
+            }
+            turnOrderSection.style.display = "flex";
+            turnOrderList.innerHTML = "";
+            const completedThreshold = Math.min(currentTurnPosition, currentRoundOrder.length);
+            const highlightCurrent = currentTurnPosition < currentRoundOrder.length;
+            currentRoundOrder.forEach((name, idx) => {
+                const chip = document.createElement("div");
+                chip.className = "turn-chip";
+                chip.innerText = `${idx + 1}. ${name}`;
+                if (idx < completedThreshold) chip.classList.add("completed");
+                if (highlightCurrent && idx === currentTurnPosition) chip.classList.add("current");
+                turnOrderList.appendChild(chip);
             });
         }
 
-        // --- 관리자 기능 함수들 ---
-        // ... (startRound, commitToCalendar, resetSession, setWeekMode, manualAdd, toggleParticipation, passTurn 함수 모두 기존과 동일) ...
+        // --- 관리자 API ---
         async function startRound() {
             addLog("[관리자] 새 라운드 시작 요청...");
             try {
@@ -461,58 +321,38 @@
             try {
                 const response = await fetch("/commit_calendar", { method: "POST" });
                 const result = await response.json();
-                if (result.status === 'error') {
-                    addLog(`[에러] ${result.message}`);
-                } else {
-                    addLog(`[성공] 캘린더에 ${result.committed_count}개 일정 추가 완료.`);
-                }
+                if (result.status === 'error') addLog(`[에러] ${result.message}`);
+                else addLog(`[성공] 캘린더에 ${result.committed_count}개 일정 추가 완료.`);
             } catch (e) { addLog(`[에러] 캘린더 추가 실패: ${e.message}`); }
         }
-        
+
         async function resetSession() {
-            if (!confirm("[관리자] 경고! 모든 예약 상태(Red, Yellow)를 초기화합니다. (캘린더는 삭제되지 않음)")) return;
+            if (!confirm("[관리자] 경고! 모든 예약 상태를 초기화합니다. (캘린더 삭제 X)")) return;
             addLog("[관리자] 시스템 초기화 요청...");
             try {
                 await fetch("/reset_session", { method: "POST" });
                 addLog("[성공] 시스템이 초기화되었습니다.");
             } catch (e) { addLog(`[에러] 초기화 실패: ${e.message}`); }
         }
-        
+
         async function setWeekMode(mode) {
             addLog(`[관리자] 주간 모드를 ${mode}로 설정 요청...`);
-            try {
-                await fetch(`/set_week_mode/${mode}`, { method: "POST" });
-            } catch (e) { addLog(`[에러] 모드 변경 실패: ${e.message}`); }
+            try { await fetch(`/set_week_mode/${mode}`, { method: "POST" }); } 
+            catch (e) { addLog(`[에러] 모드 변경 실패: ${e.message}`); }
         }
-        
+
         async function manualAdd() {
-            const request = {
-                name: manualNameSelect.value,
-                day: manualDaySelect.value,
-                time: manualTimeSelect.value,
-                floor: manualFloorSelect.value
-            };
-            if (!request.name || !request.day || !request.time || !request.floor) {
-                addLog("[에러] 수동 추가: 모든 필드를 선택하세요.");
-                return;
-            }
-            addLog(`[관리자] 수동 추가 요청: ${request.day}-${request.time}-${request.floor} / ${request.name}`);
+            const req = { name: manualNameSelect.value, day: manualDaySelect.value, time: manualTimeSelect.value, floor: manualFloorSelect.value };
+            if (!req.name || !req.day || !req.time || !req.floor) { addLog("[에러] 모든 필드를 선택하세요."); return; }
+            addLog(`[관리자] 수동 추가 요청: ${req.day}-${req.time}-${req.floor} / ${req.name}`);
             try {
-                const response = await fetch("/admin/manual_add", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(request)
-                });
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.detail || "알 수 없는 오류");
-                }
+                const res = await fetch("/admin/manual_add", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) });
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.detail || "알 수 없는 오류");
                 addLog(`[성공] 수동 추가 완료: ${result.slot_id}`);
-            } catch (e) { 
-                addLog(`[에러] 수동 추가 실패: ${e.message}`); 
-            }
+            } catch (e) { addLog(`[에러] 수동 추가 실패: ${e.message}`); }
         }
-        
+
         function toggleParticipation() {
             if (!ws) return;
             const isChecked = participationCheck.checked;
@@ -528,141 +368,120 @@
             }
         }
 
-        // [V10] 채팅 전송 함수
+        function skipCurrentTurn() {
+            if (!ws) return;
+            if (confirm("현재 턴을 강제로 건너뛰시겠습니까?")) {
+                addLog("[관리자] 턴 스킵 요청...");
+                ws.send(JSON.stringify({"type": "admin_skip_turn"}));
+            }
+        }
+
         function sendChat() {
             const message = chatInput.value.trim();
             if (ws && message) {
                 ws.send(JSON.stringify({"type": "chat", "message": message}));
                 chatInput.value = "";
-            } else if (!ws) {
-                addLog("[에러] 서버에 연결되어 있지 않습니다.");
-            }
+            } else if (!ws) { addLog("[에러] 서버에 연결되어 있지 않습니다."); }
         }
-        
-        // --- WebSocket 연결 함수 ---
+
         function connect() {
             myName = userNameSelect.value;
-            // ... (기존 코드와 동일, 변경 없음) ...
-            if (!myName) {
-                alert("이름을 선택하세요.");
-                return;
-            }
-
+            if (!myName) { alert("이름을 선택하세요."); return; }
+            
             loginBox.style.display = "none";
             statusBox.style.display = "flex";
             userListSection.style.display = "block";
             participationBox.style.display = "block";
             participationCheck.checked = true;
-            chatBox.style.display = "flex"; // [V10] 채팅창 보이기
+            chatBox.style.display = "flex";
             document.getElementById("myName").innerText = myName;
             addLog(`<b>${myName}</b> 님으로 연결 시도...`);
-            
+
             if (myName === '건우') {
-                // ... (기존 코드와 동일, 변경 없음) ...
                 adminPanel.style.display = "flex";
                 toggleAdminDeleteHover(true);
                 addLog("[시스템] 관리자 권한으로 접속했습니다.");
             }
 
             const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-            // ... (기존 코드와 동일, 변경 없음) ...
             const wsHost = window.location.host;
             ws = new WebSocket(`${wsProtocol}//${wsHost}/ws/${myName}`);
 
             ws.onmessage = function(event) {
                 const message = JSON.parse(event.data);
-
                 switch (message.type) {
-                    
                     case "initial_state":
                         resetBoard();
-                        // ... (기존 코드와 동일, 변경 없음) ...
                         for (const [slotId, initial] of Object.entries(message.reserved)) {
                             const slot = document.getElementById(slotId);
-                            if (slot) {
-                                slot.classList.add("reserved");
-                                slot.innerText = initial || '??';
-                            }
+                            if (slot) { slot.classList.add("reserved"); slot.innerText = initial || '??'; }
                         }
                         for (const [slotId, initial] of Object.entries(message.pending)) {
-                            // ... (기존 코드와 동일, 변경 없음) ...
                             const slot = document.getElementById(slotId);
-                            if (slot) {
-                                slot.classList.add("pending");
-                                slot.innerText = initial || '??';
-                            }
+                            if (slot) { slot.classList.add("pending"); slot.innerText = initial || '??'; }
                         }
+                        updateTurnOrderDisplay(Array.isArray(message.order) ? message.order : [], typeof message.current_index === "number" ? message.current_index : 0);
                         break;
-                    
+
                     case "user_list_update":
-                        // ... (기존 코드와 동일, 변경 없음) ...
                         userListDiv.innerHTML = "";
                         message.users.sort((a, b) => a.name.localeCompare(b.name));
-                        
                         message.users.forEach(user => {
                             const chip = document.createElement("span");
-                            // ... (기존 코드와 동일, 변경 없음) ...
                             chip.className = "user-chip";
                             chip.innerText = user.name;
                             if (user.name === '건우') chip.classList.add("admin");
-                            if (!user.participating) {
-                                chip.classList.add("not-participating");
-                            }
+                            if (!user.participating) chip.classList.add("not-participating");
                             userListDiv.appendChild(chip);
                         });
                         break;
 
                     case "round_started":
                         addLog(`<b>[라운드 시작] 순서: ${message.order.join(' → ')}</b>`);
+                        updateTurnOrderDisplay(Array.isArray(message.order) ? message.order : [], 0);
                         break;
-                    
+
                     case "slot_update":
-                        const slotElement = document.getElementById(message.slotId);
-                        if (slotElement) {
-                            // ... (기존 코드와 동일, 변경 없음) ...
-                            slotElement.classList.remove("available");
-                            slotElement.classList.add("pending");
-                            slotElement.innerText = message.initial; 
-                        }
-                        addLog(`[알림] ${message.user} 님이 ${message.slotId} 선택 (대기)`);
+                        const s = document.getElementById(message.slotId);
+                        if (s) { s.classList.remove("available"); s.classList.add("pending"); s.innerText = message.initial; }
+                        addLog(`[알림] ${message.user} 님 ${message.slotId} 선택 (대기)`);
                         break;
-                    
+
                     case "calendar_committed":
-                        addLog("[시스템] 캘린더에 일괄 추가되었습니다. 보드를 동기화합니다.");
-                        // ... (기존 코드와 동일, 변경 없음) ...
+                        addLog("[시스템] 캘린더 일괄 추가 완료. 보드 동기화.");
                         for (const [slotId, initial] of Object.entries(message.committed_data)) {
                             const slot = document.getElementById(slotId);
-                            if (slot) {
-                                slot.classList.remove("pending");
-                                slot.classList.add("reserved");
-                                slot.innerText = initial;
-                            }
+                            if (slot) { slot.classList.remove("pending"); slot.classList.add("reserved"); slot.innerText = initial; }
                         }
                         break;
-                    
+
                     case "week_mode_update":
-                        // ... (기존 코드와 동일, 변경 없음) ...
                         const modeText = {0: "이번주", 1: "다음주", 2: "다다음주"};
                         currentWeekModeSpan.innerText = modeText[message.mode];
-                        [0, 1, 2].forEach(m => {
-                            document.getElementById(`weekBtn${m}`).disabled = (m === message.mode);
-                        });
+                        [0, 1, 2].forEach(m => document.getElementById(`weekBtn${m}`).disabled = (m === message.mode));
                         break;
 
                     case "turn_update":
-                        // ... (기존 코드와 동일, 변경 없음) ...
+                        updateTurnOrderDisplay(Array.isArray(message.order) ? message.order : currentRoundOrder, typeof message.current_index === "number" ? message.current_index : currentTurnPosition);
                         if (message.user === "ROUND_END") {
-                            statusTurn.innerText = "모든 턴 종료";
+                            statusTurn.innerText = currentRoundOrder.length ? "모든 턴 종료" : "라운드 대기";
                             statusTurn.style.color = "#888";
-                            toggleSlots(false); 
+                            toggleSlots(false);
                             passTurnButton.style.display = "none";
                         } else {
                             statusTurn.innerText = message.user;
                             if (message.user === myName) {
-                                addLog(`<b>--- ${myName} 님, 차례입니다! ---</b>`);
+                                addLog(`<b>--- ${myName} 님 차례입니다! ---</b>`);
                                 statusTurn.style.color = "#28a745";
                                 toggleSlots(true);
                                 passTurnButton.style.display = "block";
+                                
+                                // [추가] 내 턴일 때 화면 깜빡임 효과
+                                document.body.classList.add("my-turn-flash");
+                                setTimeout(() => {
+                                    document.body.classList.remove("my-turn-flash");
+                                }, 600); 
+
                             } else {
                                 statusTurn.style.color = "#dc3545";
                                 toggleSlots(false);
@@ -670,78 +489,25 @@
                             }
                         }
                         break;
-                    
-                    case "turn_passed":
-                        addLog(`[알림] ${message.user} 님이 턴을 넘겼습니다.`);
-                        break;
-                        
-                    // [V10] 채팅 메시지 수신
-                    case "chat_message":
-                        const time = new Date().toLocaleTimeString();
-                        addLog(`[${time}] <b>${message.user}</b>: ${message.message}`, true);
-                        break;
 
-                    case "error":
-                        addLog(`[에러] ${message.message}`);
-                        break;
+                    case "turn_passed": addLog(`[알림] ${message.user} 님이 턴을 넘겼습니다.`); break;
+                    case "turn_skipped": addLog(`[관리자] ${message.skipped_user} 님의 턴이 스킵되었습니다.`); break;
+                    case "chat_message": addLog(`[${new Date().toLocaleTimeString()}] <b>${message.user}</b>: ${message.message}`, true); break;
+                    case "error": addLog(`[에러] ${message.message}`); break;
                 }
             };
             
             ws.onopen = () => addLog(`[알림] ${myName} 님, 서버에 연결되었습니다.`);
-            
             ws.onclose = () => {
                 addLog("[알림] 서버 연결이 끊어졌습니다.");
-                loginBox.style.display = "flex";
-                statusBox.style.display = "none";
-                adminPanel.style.display = "none";
-                userListSection.style.display = "none";
-                participationBox.style.display = "none";
-                passTurnButton.style.display = "none";
-                chatBox.style.display = "none"; // [V10] 채팅창 숨기기
-                userListDiv.innerHTML = "";
-                statusTurn.innerText = "대기 중...";
-                toggleAdminDeleteHover(false);
+                loginBox.style.display = "flex"; statusBox.style.display = "none"; adminPanel.style.display = "none";
+                userListSection.style.display = "none"; participationBox.style.display = "none"; passTurnButton.style.display = "none";
+                chatBox.style.display = "none"; userListDiv.innerHTML = ""; statusTurn.innerText = "대기 중...";
+                toggleAdminDeleteHover(false); currentRoundOrder = []; currentTurnPosition = 0; renderTurnOrderDisplay();
                 ws = null;
             };
-            
-            ws.onerror = (err) => {
-                // ... (기존 코드와 동일, 변경 없음) ...
-                addLog(`[WebSocket 에러] ${err ? err.message : 'Unknown error'}`);
-            };
+            ws.onerror = (err) => addLog(`[WebSocket 에러] ${err ? err.message : 'Unknown error'}`);
         }
-
-        // 슬롯 클릭 이벤트
-        allSlots.forEach(slot => {
-            // ... (기존 코드와 동일, 변경 없음) ...
-            slot.addEventListener("click", function() {
-                const slotId = slot.id; 
-                
-                if (!ws) {
-                    addLog("[알림] 먼저 '연결' 버튼을 눌러주세요.");
-                    return;
-                }
-                
-                if (myName === '건우' && (slot.classList.contains("reserved") || slot.classList.contains("pending"))) {
-                    if (confirm(`[관리자] ${slotId} 슬롯을 시스템에서만 삭제하시겠습니까? (캘린더 X)`)) {
-                        addLog(`[관리자] ${slotId} 시스템 삭제 요청...`);
-                        ws.send(JSON.stringify({"type": "admin_delete", "slotId": slotId}));
-                    }
-                    return;
-                }
-                
-                if (slot.classList.contains("reserved") || slot.classList.contains("pending")) {
-                    addLog(`[알림] ${slotId} 는 이미 선택된 슬롯입니다.`);
-                    return;
-                }
-                if (!slot.classList.contains("available")) {
-                    addLog("[알림] 내 턴이 아닙니다. (현재 턴: " + statusTurn.innerText + ")");
-                    return;
-                }
-                
-                addLog(`[전송] ${slotId} 예약 시도...`);
-                ws.send(slotId);
-            });
-        });
     </script>
 </body>
 </html>
